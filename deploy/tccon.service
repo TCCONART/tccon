@@ -1,17 +1,35 @@
 [Unit]
 Description=TCCON Sistema de Orcamentos
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-# Ajuste o caminho abaixo para onde voce colocou a pasta:
 WorkingDirectory=/opt/tccon-orcamentos
 ExecStart=/usr/bin/node server.js
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
 Environment=PORT=3000
-Restart=always
+Environment=DATA_DIR=/opt/tccon-orcamentos/data
+Environment=PUBLIC_DIR=/opt/tccon-orcamentos/public
+Restart=on-failure
 RestartSec=3
+TimeoutStopSec=15
 User=www-data
 Group=www-data
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/opt/tccon-orcamentos/data
 
 [Install]
 WantedBy=multi-user.target

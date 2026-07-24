@@ -2,11 +2,16 @@
   "name": "tccon-orcamentos",
   "version": "1.0.0",
   "description": "Sistema de Orcamentos TCCON - servidor VPS",
+  "private": true,
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "lint": "node --check server.js && node --check scripts/patch-frontend.js && node --check scripts/validate-frontend.js && node --check test/server.test.js && node --check test/frontend.test.js",
+    "build": "node scripts/validate-frontend.js",
+    "check": "node --check server.js && node --check scripts/patch-frontend.js && node --check scripts/validate-frontend.js && node --check test/server.test.js && node --check test/frontend.test.js && node --test && node scripts/validate-frontend.js",
+    "test": "node --test"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=24 <25"
   }
 }
