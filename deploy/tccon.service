@@ -1,0 +1,17 @@
+[Unit]
+Description=TCCON Sistema de Orcamentos
+After=network.target
+
+[Service]
+Type=simple
+# Ajuste o caminho abaixo para onde voce colocou a pasta:
+WorkingDirectory=/opt/tccon-orcamentos
+ExecStart=/usr/bin/node server.js
+Environment=PORT=3000
+Restart=always
+RestartSec=3
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target

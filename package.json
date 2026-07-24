@@ -1,0 +1,12 @@
+{
+  "name": "tccon-orcamentos",
+  "version": "1.0.0",
+  "description": "Sistema de Orcamentos TCCON - servidor VPS",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
