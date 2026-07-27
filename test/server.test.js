@@ -106,6 +106,45 @@ test('store writes preserve concurrent keys and are durable before success', asy
   assert.equal(fs.existsSync(`${paths.storeFile}.bak`), true);
 });
 
+test('store changes are published to connected browsers in real time', async (t) => {
+  const { server } = await fixture(t);
+  const address = server.address();
+  const eventRequest = http.request({
+    host: '127.0.0.1',
+    port: address.port,
+    path: '/api/events',
+    headers: { Accept: 'text/event-stream' },
+  });
+
+  const eventResponse = await new Promise((resolve, reject) => {
+    eventRequest.once('response', resolve);
+    eventRequest.once('error', reject);
+    eventRequest.end();
+  });
+  t.after(() => eventResponse.destroy());
+  assert.equal(eventResponse.statusCode, 200);
+  assert.match(eventResponse.headers['content-type'], /^text\/event-stream/);
+
+  let eventText = '';
+  const changed = new Promise((resolve) => {
+    eventResponse.on('data', (chunk) => {
+      eventText += chunk.toString('utf8');
+      if (eventText.includes('event: change')) resolve();
+    });
+  });
+  const written = await request(server, '/api/store/tccon_live', {
+    method: 'PUT',
+    body: { value: { updated: true } },
+  });
+  assert.equal(written.status, 200);
+  await changed;
+  assert.match(eventText, /"key":"tccon_live"/);
+
+  const single = await request(server, '/api/store/tccon_live');
+  assert.equal(single.status, 200);
+  assert.deepEqual(single.json, { value: { updated: true } });
+});
+
 test('invalid input and API routes fail safely', async (t) => {
   const { server } = await fixture(t, { maxBodyBytes: 32 });
 
@@ -148,6 +187,38 @@ test('cross-site state changes are rejected', async (t) => {
   });
   assert.equal(response.status, 403);
   assert.equal(response.json.error, 'cross_site_request_denied');
+});
+
+test('configured domain restricts forwarded Host without breaking local healthchecks', async (t) => {
+  const { server } = await fixture(t, { domain: 'orcamentos.example.com' });
+
+  const publicHost = await request(server, '/api/health', {
+    headers: { Host: 'orcamentos.example.com' },
+  });
+  assert.equal(publicHost.status, 200);
+
+  const localHealthcheck = await request(server, '/api/ready');
+  assert.equal(localHealthcheck.status, 200);
+
+  const unexpectedHost = await request(server, '/api/health', {
+    headers: { Host: 'outro.example.com' },
+  });
+  assert.equal(unexpectedHost.status, 421);
+  assert.equal(unexpectedHost.json.error, 'misdirected_request');
+});
+
+test('startup rejects an invalid public domain', () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tccon-domain-'));
+  assert.throws(
+    () => createApplication({
+      dataDir,
+      publicDir: PUBLIC_DIR,
+      domain: 'https://orcamentos.example.com/path',
+      logger: () => {},
+    }),
+    /TCCON_DOMAIN/,
+  );
+  fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
 test('password hashes persist and verification is rate limited', async (t) => {

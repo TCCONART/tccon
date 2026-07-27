@@ -6,10 +6,11 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "lint": "node --check server.js && node --check scripts/patch-frontend.js && node --check scripts/validate-frontend.js && node --check test/server.test.js && node --check test/frontend.test.js",
+    "lint": "node --check server.js && node --check scripts/patch-frontend.js && node --check scripts/render-traefik-config.js && node --check scripts/validate-frontend.js && node --check test/server.test.js && node --check test/frontend.test.js && node --check test/traefik.test.js",
     "build": "node scripts/validate-frontend.js",
-    "check": "node --check server.js && node --check scripts/patch-frontend.js && node --check scripts/validate-frontend.js && node --check test/server.test.js && node --check test/frontend.test.js && node --test && node scripts/validate-frontend.js",
-    "test": "node --test"
+    "check": "node --check server.js && node --check scripts/patch-frontend.js && node --check scripts/render-traefik-config.js && node --check scripts/validate-frontend.js && node --check test/server.test.js && node --check test/frontend.test.js && node --check test/traefik.test.js && node --test && node scripts/validate-frontend.js",
+    "test": "node --test",
+    "traefik:config": "node scripts/render-traefik-config.js"
   },
   "engines": {
     "node": ">=24 <25"

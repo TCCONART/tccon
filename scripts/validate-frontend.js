@@ -24,6 +24,9 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     'class="data-table"',
     'role="status" aria-live="polite"',
     '__tccon_pending_sync',
+    'startRealtime',
+    "new EventSource(this.apiBase()+'/events')",
+    'refreshKey(k)',
     'migrateLocalPasswords',
     'senhaAtual',
   ];

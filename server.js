@@ -115,6 +115,18 @@ function isAuthStore(value) {
       /^[0-9a-f]{128}$/.test(record.hash));
 }
 
+function parseDomain(value) {
+  if (value === undefined || value === '') return null;
+  const domain = String(value).trim().toLowerCase();
+  if (
+    domain.length > 253 ||
+    !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(domain)
+  ) {
+    throw new Error('TCCON_DOMAIN must be a valid hostname without protocol or path');
+  }
+  return domain;
+}
+
 function createApplication(options = {}) {
   const publicDir = path.resolve(options.publicDir || process.env.PUBLIC_DIR || path.join(__dirname, 'public'));
   const dataDir = path.resolve(options.dataDir || process.env.DATA_DIR || path.join(__dirname, 'data'));
@@ -129,6 +141,13 @@ function createApplication(options = {}) {
     'MAX_STORE_BYTES',
   );
   const logger = options.logger || logJson;
+  const domain = parseDomain(options.domain ?? process.env.TCCON_DOMAIN);
+  const allowedHosts = new Set([
+    '127.0.0.1',
+    'localhost',
+    '::1',
+    ...(domain ? [domain] : []),
+  ]);
   const storeFile = path.join(dataDir, 'store.json');
   const authFile = path.join(dataDir, 'auth.json');
 
@@ -146,6 +165,47 @@ function createApplication(options = {}) {
   let auth = readJsonStrict(authFile, {}, isAuthStore, MAX_AUTH_BYTES);
   let shuttingDown = false;
   const authFailures = new Map();
+  const storeSubscribers = new Set();
+  let storeRevision = 0;
+
+  function removeStoreSubscriber(subscriber) {
+    if (!storeSubscribers.delete(subscriber)) return;
+    clearInterval(subscriber.heartbeat);
+  }
+
+  function subscribeToStore(req, res) {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    res.write(`event: ready\ndata: ${JSON.stringify({ revision: storeRevision })}\n\n`);
+
+    const subscriber = { res, heartbeat: undefined };
+    subscriber.heartbeat = setInterval(() => {
+      try {
+        res.write(': heartbeat\n\n');
+      } catch {
+        removeStoreSubscriber(subscriber);
+      }
+    }, 20_000);
+    subscriber.heartbeat.unref();
+    storeSubscribers.add(subscriber);
+    req.once('close', () => removeStoreSubscriber(subscriber));
+  }
+
+  function broadcastStoreChange(key) {
+    storeRevision += 1;
+    const message = `id: ${storeRevision}\nevent: change\ndata: ${JSON.stringify({ key, revision: storeRevision })}\n\n`;
+    for (const subscriber of storeSubscribers) {
+      try {
+        subscriber.res.write(message);
+      } catch {
+        removeStoreSubscriber(subscriber);
+      }
+    }
+  }
 
   function persistStore(nextStore) {
     const size = Buffer.byteLength(JSON.stringify(nextStore));
@@ -299,6 +359,19 @@ function createApplication(options = {}) {
     }
   }
 
+  function requireAllowedHost(req) {
+    const host = String(req.headers.host || '');
+    let hostname;
+    try {
+      hostname = new URL(`http://${host}`).hostname.replace(/^\[|\]$/g, '').toLowerCase();
+    } catch {
+      throw new HttpError(400, 'invalid_host');
+    }
+    if (domain && !allowedHosts.has(hostname)) {
+      throw new HttpError(421, 'misdirected_request');
+    }
+  }
+
   const mimeTypes = {
     '.html': 'text/html; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
@@ -361,6 +434,7 @@ function createApplication(options = {}) {
       throw new HttpError(400, 'bad_url');
     }
     const pathname = parsedUrl.pathname;
+    requireAllowedHost(req);
 
     if (pathname === '/api/health') {
       if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'method_not_allowed');
@@ -383,8 +457,12 @@ function createApplication(options = {}) {
       return sendJson(res, 200, store);
     }
 
-    if (pathname.startsWith('/api/store/') && req.method === 'PUT') {
-      requireSameSite(req);
+    if (pathname === '/api/events') {
+      if (req.method !== 'GET') throw new HttpError(405, 'method_not_allowed');
+      return subscribeToStore(req, res);
+    }
+
+    if (pathname.startsWith('/api/store/')) {
       let key;
       try {
         key = decodeURIComponent(pathname.slice('/api/store/'.length));
@@ -392,9 +470,16 @@ function createApplication(options = {}) {
         throw new HttpError(400, 'bad_url_encoding');
       }
       if (!/^tccon_[A-Za-z0-9_-]{1,160}$/.test(key)) throw new HttpError(400, 'invalid_key');
+      if (req.method === 'GET') {
+        if (!Object.hasOwn(store.keys, key)) throw new HttpError(404, 'key_not_found');
+        return sendJson(res, 200, { value: store.keys[key] });
+      }
+      if (req.method !== 'PUT') throw new HttpError(405, 'method_not_allowed');
+      requireSameSite(req);
       const body = await readJsonBody(req);
       if (!isRecord(body) || !Object.hasOwn(body, 'value')) throw new HttpError(400, 'invalid_body');
       persistStore({ keys: { ...store.keys, [key]: body.value } });
+      broadcastStoreChange(key);
       return sendJson(res, 200, { ok: true });
     }
 
@@ -485,6 +570,10 @@ function createApplication(options = {}) {
     if (shuttingDown) return;
     shuttingDown = true;
     logger('info', 'shutdown_started', { signal });
+    for (const subscriber of storeSubscribers) {
+      removeStoreSubscriber(subscriber);
+      subscriber.res.end();
+    }
     await new Promise((resolve) => {
       const forceTimer = setTimeout(() => {
         if (typeof server.closeAllConnections === 'function') server.closeAllConnections();

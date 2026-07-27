@@ -1,98 +1,97 @@
 # TCCON — instalação e operação
 
-Sistema web de orçamentos com catálogo de materiais, clientes, perfis de
-vendedores e histórico de propostas. O frontend é um artefato React autocontido;
-o servidor é Node.js puro, sem pacotes npm de terceiros.
+Sistema web de orçamentos com frontend React autocontido e servidor Node.js
+sem dependências npm de terceiros.
 
-> **Estado de segurança:** não exponha o processo Node nem a porta 3000 à
-> internet. A aplicação ainda não possui sessão e autorização próprias. O Nginx
-> fornecido exige autenticação HTTP Basic como barreira externa temporária.
-> Além disso, o artefato web atual contém a carga inicial de clientes; não o
-> distribua como arquivo público.
-> Consulte [AUDITORIA-TECNICA.md](AUDITORIA-TECNICA.md) antes do deploy.
+> **Segurança:** não deixe a porta do Node aberta para toda a internet. Como o
+> Traefik está em outra VPS, permita acesso à porta somente a partir do IP da
+> VPS do Traefik ou, preferencialmente, use uma rede privada/WireGuard. A
+> aplicação ainda não possui sessões e autorização próprias; por isso o
+> middleware HTTP Basic do Traefik é obrigatório. O bundle também contém a
+> carga inicial de clientes e não deve ser distribuído publicamente.
 
-Senhas novas nunca são salvas em texto puro no navegador. Alterar uma senha já
-definida exige informar a senha atual. Ao encontrar uma senha legada no
-armazenamento local, o frontend tenta migrá-la para o hash do servidor e remove
-o texto puro somente depois da confirmação da API. Se o servidor estiver
-indisponível, criação e alteração de senha são recusadas.
+## Endereços e portas
 
-## Arquitetura
+A interface e a API não usam portas separadas. Ambas são servidas pelo mesmo
+processo Node:
+
+| Componente | Endereço |
+|---|---|
+| Interface pública | `https://TCCON_DOMAIN/` |
+| API pública | `https://TCCON_DOMAIN/api/*` |
+| Backend visto pelo Traefik | `TCCON_BACKEND_URL` (ex.: `http://10.0.0.20:3000`) |
+| Porta publicada na VPS da aplicação | `TCCON_BIND_IP:TCCON_PORT` |
+| Porta interna do container | `3000` |
 
 ```text
 Navegador
-   │ HTTPS + autenticação HTTP Basic
+   │ HTTPS + HTTP Basic
    ▼
-Nginx :443
-   │ HTTP em loopback
+Traefik na VPS de proxy :443
+   │ rede privada/VPN ou firewall restrito
    ▼
-Node.js :3000
-   ├── public/index.html
-   ├── data/store.json       clientes, materiais, usuários e orçamentos
-   ├── data/store.json.bak   versão anterior automática
-   ├── data/auth.json        hashes de senha dos perfis
-   └── data/auth.json.bak    versão anterior automática
+VPS da aplicação :TCCON_PORT
+   └── Node.js :3000
+       ├── /                  interface
+       ├── /api/*             API
+       ├── data/store.json    dados compartilhados
+       └── data/auth.json     hashes de senha
 ```
 
-Não há banco relacional, migrations, filas, cache, jobs, webhooks ou serviço de
-upload. Fotos de perfil são reduzidas no navegador e armazenadas como dados no
-JSON compartilhado.
+O DNS do domínio deve apontar para a VPS do **Traefik**, não para a VPS da
+aplicação.
 
 ## Pré-requisitos
 
-- VPS Linux x86-64 ou arm64 com horário sincronizado.
-- Docker Engine e plugin Docker Compose mantidos e atualizados.
-- Nginx, `apache2-utils` e Certbot no host.
-- Domínio apontado para o VPS para emissão de TLS.
-- Espaço de backup fora da pasta da aplicação e, idealmente, cópia externa.
+- VPS da aplicação com Docker Engine e Docker Compose atualizados;
+- VPS do Traefik com entrypoint HTTPS, resolvedor ACME e file provider;
+- conectividade privada entre as VPSs ou firewall por IP de origem;
+- domínio com registro DNS apontando para a VPS do Traefik;
+- backup externo para a pasta `data/`.
 
-Para execução sem Docker, use exclusivamente uma versão Node.js `24.x` LTS.
+Para execução sem Docker, use Node.js `24.x` LTS.
 
-## Desenvolvimento e validação
+## Configuração por `.env`
 
-Não há etapa de compilação do React: `public/index.html` é o artefato gerado e as
-fontes originais não acompanham o repositório. Os comandos disponíveis são:
-
-```bash
-npm run lint
-npm test
-npm run build
-npm run check
-```
-
-`lint` valida a sintaxe JavaScript; `test` executa os testes nativos do Node;
-`build` valida a estrutura e os recursos do bundle; e `check` executa tudo.
-O script `scripts/patch-frontend.js` registra de forma reproduzível as correções
-aplicadas ao template gerado e é idempotente. Execute-o somente ao substituir o
-bundle por uma nova exportação.
-
-## Variáveis
-
-Copie `.env.example` para `.env`. O arquivo `.env` não deve ser versionado.
-
-| Variável | Obrigatória | Padrão | Finalidade |
-|---|---:|---|---|
-| `HOST` | não | `0.0.0.0` no Docker | Interface interna do processo |
-| `PORT` | não | `3000` | Porta interna |
-| `DATA_DIR` | não | `/app/data` | Persistência |
-| `PUBLIC_DIR` | não | `/app/public` | Artefato web |
-| `MAX_BODY_BYTES` | não | `20971520` | Limite por requisição JSON |
-| `MAX_STORE_BYTES` | não | `52428800` | Limite do armazenamento |
-| `TCCON_PORT` | não | `3000` | Porta no loopback do host |
-| `TCCON_MEMORY_LIMIT` | não | `512m` | Memória do container |
-| `TCCON_CPU_LIMIT` | não | `1.0` | CPUs do container |
-| `TCCON_LOG_MAX_SIZE` | não | `10m` | Tamanho por arquivo de log |
-| `TCCON_LOG_MAX_FILES` | não | `5` | Quantidade de arquivos de log |
-
-Nenhuma variável secreta é aceita pela aplicação. A credencial da barreira
-externa fica somente no arquivo `/etc/nginx/tccon.htpasswd`.
-
-## Primeira instalação com Docker
-
-No diretório escolhido, por exemplo `/opt/tccon-orcamentos`:
+Na VPS da aplicação:
 
 ```bash
 cp .env.example .env
+nano .env
+```
+
+Principais variáveis:
+
+| Variável | Exemplo | Finalidade |
+|---|---|---|
+| `TCCON_DOMAIN` | `orcamentos.exemplo.com.br` | domínio público, sem protocolo ou caminho |
+| `TCCON_BIND_IP` | `10.0.0.20` | IP privado/VPN em que a porta será publicada |
+| `TCCON_PORT` | `3000` | porta que o Traefik remoto acessará |
+| `TCCON_BACKEND_URL` | `http://10.0.0.20:3000` | origin completo visto pela VPS do Traefik |
+| `TRAEFIK_ENTRYPOINT` | `websecure` | entrypoint HTTPS existente no Traefik |
+| `TRAEFIK_CERT_RESOLVER` | `letsencrypt` | resolvedor ACME existente no Traefik |
+| `TRAEFIK_AUTH_USERS_FILE` | `/etc/traefik/tccon-users` | arquivo de usuários na VPS do Traefik |
+
+`TCCON_DOMAIN` também limita o cabeçalho `Host` aceito pela aplicação. Os nomes
+`localhost` e os IPs de loopback continuam liberados para healthchecks locais.
+O `.env` real é ignorado pelo Git; somente `.env.example` deve ser versionado.
+
+As demais variáveis controlam diretórios e limites:
+
+| Variável | Padrão no Docker |
+|---|---|
+| `HOST` | `0.0.0.0` |
+| `PORT` | `3000` |
+| `DATA_DIR` | `/app/data` |
+| `PUBLIC_DIR` | `/app/public` |
+| `MAX_BODY_BYTES` | `20971520` |
+| `MAX_STORE_BYTES` | `52428800` |
+| `TCCON_MEMORY_LIMIT` | `512m` |
+| `TCCON_CPU_LIMIT` | `1.0` |
+
+## Instalação da aplicação
+
+```bash
 mkdir -p data
 sudo chown 1000:1000 data
 sudo chmod 700 data
@@ -104,77 +103,102 @@ docker compose ps
 curl --fail --silent http://127.0.0.1:3000/api/ready
 ```
 
-O Compose publica `127.0.0.1:3000`, nunca `0.0.0.0:3000`. O container executa
-como usuário não root, com capabilities removidas, filesystem raiz somente para
-leitura, limites de CPU/memória/PIDs, healthcheck e rotação de logs.
-A imagem usa Node 24 LTS sobre Alpine e remove npm, Corepack e Yarn do runtime,
-pois a aplicação não possui dependências instaladas; isso reduz a superfície de
-ataque sem afetar a execução.
+Se `TCCON_BIND_IP` for um IP privado específico, faça o teste nesse IP em vez de
+`127.0.0.1`. Nunca use permissões `777` em `data/`.
 
-Se o container não puder escrever em `data/`, confira:
+No firewall ou security group da VPS da aplicação, permita
+`TCCON_PORT/tcp` **somente** a partir do IP da VPS do Traefik. Exemplo com UFW,
+ajustando os dois valores antes de executar:
 
 ```bash
-stat -c '%u:%g %a %n' data
-sudo chown -R 1000:1000 data
-sudo chmod 700 data
+sudo ufw allow from IP_DA_VPS_TRAEFIK to any port 3000 proto tcp
+sudo ufw deny 3000/tcp
+sudo ufw status numbered
 ```
 
-Não altere permissões para `777`.
+Confira as regras existentes antes de aplicá-las para não bloquear SSH ou a
+rede privada. Com WireGuard, use os IPs do túnel em `TCCON_BIND_IP` e
+`TCCON_BACKEND_URL`.
 
-## Nginx, autenticação e HTTPS
+## Configuração do Traefik remoto
 
-Crie a credencial interativamente, sem colocar a senha na linha de comando:
+Na VPS do Traefik, crie a credencial interativamente:
 
 ```bash
-sudo apt update
-sudo apt install -y nginx apache2-utils certbot python3-certbot-nginx
-sudo htpasswd -c /etc/nginx/tccon.htpasswd operador
-sudo chown root:www-data /etc/nginx/tccon.htpasswd
-sudo chmod 640 /etc/nginx/tccon.htpasswd
+sudo apt install -y apache2-utils
+sudo install -d -m 750 /etc/traefik
+sudo htpasswd -cB /etc/traefik/tccon-users operador
+sudo chmod 640 /etc/traefik/tccon-users
 ```
 
-Depois:
+O usuário que executa o Traefik precisa conseguir ler esse arquivo. Não coloque
+o hash ou a senha no `.env` ou no repositório.
+
+Na VPS da aplicação, gere a configuração dinâmica usando o `.env`:
 
 ```bash
-sudo cp deploy/nginx-tccon.conf /etc/nginx/sites-available/tccon
-sudoedit /etc/nginx/sites-available/tccon
-# Substitua somente orcamentos.seudominio.com.br pelo domínio real.
-sudo ln -s /etc/nginx/sites-available/tccon /etc/nginx/sites-enabled/tccon
-sudo nginx -t
-sudo systemctl reload nginx
-sudo certbot --nginx -d SEU_DOMINIO
+npm run traefik:config
+scp deploy/traefik-dynamic.generated.yml USUARIO@VPS_TRAEFIK:/tmp/tccon.yml
+ssh USUARIO@VPS_TRAEFIK \
+  'sudo install -o root -g root -m 640 /tmp/tccon.yml /etc/traefik/dynamic/tccon.yml && rm /tmp/tccon.yml'
 ```
 
-Mantenha somente SSH, HTTP e HTTPS liberados no firewall. A porta 3000 não deve
-ser aberta.
+O arquivo de origem é `deploy/traefik-dynamic.yml.template`; o arquivo gerado
+contém o domínio e o endereço privado do backend e é ignorado pelo Git. A
+configuração cria:
 
-## Validação pós-inicialização
+- roteamento de `/` e `/api/*` para o mesmo backend;
+- TLS pelo cert resolver configurado;
+- HTTP Basic obrigatório;
+- rate limit adicional em `/api/auth/*`;
+- healthcheck em `/api/ready`;
+- headers de segurança.
+
+O file provider do Traefik deve observar `/etc/traefik/dynamic/` (ou o diretório
+equivalente da sua instalação). Se o Traefik estiver em container, monte também
+o arquivo de usuários no mesmo caminho configurado em
+`TRAEFIK_AUTH_USERS_FILE`. Depois de copiar:
+
+```bash
+curl --fail http://IP_PRIVADO_DA_APLICACAO:3000/api/ready \
+  -H 'Host: orcamentos.exemplo.com.br'
+docker logs --since=10m NOME_DO_CONTAINER_TRAEFIK
+curl -I https://orcamentos.exemplo.com.br/
+```
+
+O primeiro `curl` é executado a partir da VPS do Traefik. O último deve pedir
+autenticação (`401`) sem credenciais e responder normalmente após autenticar.
+
+## Desenvolvimento e validação
+
+Não há compilação do React: `public/index.html` é um bundle pré-gerado e as
+fontes originais não acompanham o repositório.
+
+```bash
+npm run lint
+npm test
+npm run build
+npm run check
+npm run traefik:config
+```
+
+## Validação pós-deploy
 
 ```bash
 docker compose ps
-curl --fail --silent http://127.0.0.1:3000/api/health
-curl --fail --silent http://127.0.0.1:3000/api/ready
 docker compose logs --since=10m tccon
+curl --fail --silent http://127.0.0.1:3000/api/health
+curl --fail --silent https://SEU_DOMINIO/api/ready -u operador
 ```
 
-Além do healthcheck, valide no navegador:
+No navegador, valide login HTTP Basic, entrada em um perfil de teste, busca de
+material, criação e salvamento de orçamento, histórico após recarregar e
+responsividade em tela móvel. Os logs do Node são JSON e não registram corpos de
+requisição.
 
-1. autenticação HTTP Basic;
-2. carregamento da tela de perfis;
-3. entrada em um perfil de teste;
-4. busca de material;
-5. criação e salvamento de um orçamento de teste;
-6. reaparecimento no histórico após recarregar;
-7. exclusão dos dados de teste conforme a regra operacional aprovada.
+## Backup
 
-Procure nos logs por `startup_failed`, `request_failed`, reinicializações e
-qualquer dado sensível inesperado. Os logs do servidor são JSON estruturado e
-não registram corpos de requisição.
-
-## Backup recomendado
-
-Os dois JSONs devem ser copiados como um conjunto. Para uma cópia consistente,
-faça uma breve janela de manutenção:
+Copie `store.json` e `auth.json` como um conjunto. Para consistência:
 
 ```bash
 sudo install -d -m 700 /var/backups/tccon
@@ -185,89 +209,29 @@ docker compose start tccon
 sudo sha256sum /var/backups/tccon/tccon-*.tar.gz
 ```
 
-Em seguida:
+Teste restaurações periodicamente e replique uma cópia criptografada para outro
+host. Os arquivos `.bak` locais não substituem backup externo.
 
-- teste periodicamente a extração em outra pasta;
-- valide `store.json` e `auth.json` com um parser JSON;
-- retenha cópias diárias, semanais e mensais conforme a política do cliente;
-- replique uma cópia criptografada para outro host/provedor;
-- monitore espaço livre e sucesso do job;
-- nunca considere os arquivos `.bak` substitutos de um backup externo.
+## Atualização e rollback
 
-## Restauração
-
-Faça primeiro uma cópia de preservação do estado atual. Nunca extraia por cima
-de uma instância em execução.
+Antes de atualizar, gere e valide um backup, preserve `.env` e `data/`, execute
+`npm run check`, `docker compose config` e `docker compose build --pull`.
+Depois:
 
 ```bash
-docker compose stop tccon
-sudo mv data "data.pre-restore-$(date -u +%Y%m%dT%H%M%SZ)"
-sudo mkdir data
-sudo tar -xzf /CAMINHO/backup-validado.tar.gz --strip-components=1 -C data
-
-sudo chown -R 1000:1000 data
-sudo chmod 700 data
-sudo chmod 600 data/*.json data/*.bak 2>/dev/null || true
-docker compose run --rm --no-deps tccon node -e \
-  "JSON.parse(require('fs').readFileSync('/app/data/store.json','utf8'))"
-docker compose run --rm --no-deps tccon node -e \
-  "JSON.parse(require('fs').readFileSync('/app/data/auth.json','utf8'))"
-docker compose start tccon
-curl --fail --silent http://127.0.0.1:3000/api/ready
-```
-
-Só remova a pasta `data.pre-restore-*` depois de validar os fluxos e obter
-confirmação de que a restauração está correta.
-
-## Atualização segura
-
-1. agende a janela e avise os usuários;
-2. confirme espaço em disco e estado saudável;
-3. gere e teste um backup;
-4. registre o commit e a imagem atualmente executados;
-5. obtenha a versão revisada sem sobrescrever `.env` nem `data/`;
-6. execute `docker compose config`;
-7. execute os testes com Node 24: `npm run check`;
-8. construa com `docker compose build --pull`;
-9. aplique com `docker compose up -d`;
-10. aguarde o healthcheck e execute a validação pós-inicialização.
-
-Não há migrations na versão atual.
-
-## Rollback
-
-### Somente código
-
-Volte ao commit/imagem anterior e recrie o serviço, preservando `data/`:
-
-```bash
-git checkout COMMIT_ANTERIOR
-docker compose build --pull
 docker compose up -d
-curl --fail --silent http://127.0.0.1:3000/api/ready
+docker compose ps
+curl --fail --silent https://SEU_DOMINIO/api/ready -u operador
 ```
 
-Não restaure dados apenas porque o código voltou. Isso descartaria alterações
-legítimas feitas após o deploy.
-
-### Código e dados
-
-Use o procedimento de restauração somente se houver corrupção ou alteração
-incompatível confirmada. Registre o horário de corte, preserve o estado atual e
-obtenha autorização do responsável pelos dados.
+Para rollback de código, volte ao commit/imagem anterior e recrie o serviço sem
+substituir `data/`. Restaure dados apenas quando houver corrupção confirmada,
+com a aplicação parada e uma cópia de preservação do estado atual.
 
 ## Alternativa systemd
 
-O arquivo `deploy/tccon.service` executa o processo em loopback como `www-data`
-e aplica hardening do systemd. Antes de habilitá-lo:
-
-```bash
-sudo chown -R root:root /opt/tccon-orcamentos
-sudo install -d -o www-data -g www-data -m 700 /opt/tccon-orcamentos/data
-sudo cp deploy/tccon.service /etc/systemd/system/tccon.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now tccon
-sudo systemctl status tccon
-```
-
-Use Node 24 LTS e mantenha o Nginx com autenticação e TLS também nessa opção.
+`deploy/tccon.service` lê `/etc/tccon/tccon.env` e aplica hardening. Configure no
+mínimo `TCCON_DOMAIN`, `HOST`, `PORT`, `DATA_DIR` e `PUBLIC_DIR` nesse arquivo.
+Use um IP privado em `HOST` quando possível e aplique a mesma restrição de
+firewall exigida para Docker. O Traefik remoto continua responsável por TLS e
+HTTP Basic.

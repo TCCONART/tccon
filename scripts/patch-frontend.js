@@ -352,6 +352,70 @@ template = replaceOnce(
   'profile keyboard handler',
 );
 
+template = replaceOnce(
+  template,
+  `  componentDidMount(){
+    this.setState({data:this.today(), numero:this.genNumero(), markup:this.props.markupPadrao ?? 2, showMargem:this.props.mostrarMargem ?? false});
+    this.pullFromServer().then(()=>this.initData());
+  }`,
+  `  componentDidMount(){
+    this.setState({data:this.today(), numero:this.genNumero(), markup:this.props.markupPadrao ?? 2, showMargem:this.props.mostrarMargem ?? false});
+    this.pullFromServer().then(()=>{this.initData();this.startRealtime();});
+  }
+  componentWillUnmount(){
+    if(this._events)this._events.close();
+    Object.values(this._remoteTimers||{}).forEach(clearTimeout);
+    clearTimeout(this._t);
+  }`,
+  'real-time lifecycle',
+);
+
+template = replaceOnce(
+  template,
+  `  pushKey(k,val){
+    if(typeof k!=='string' || k.indexOf('tccon_')!==0) return Promise.resolve(false);`,
+  `  applyRemoteKey(k,val){
+    try{localStorage.setItem(k,typeof val==='string'?val:JSON.stringify(val));}catch(e){}
+    const patch={};
+    if(k==='tccon_materiais')patch.products=val;
+    else if(k==='tccon_clientes')patch.clientes=val;
+    else if(k==='tccon_users')patch.users=val;
+    else if(this.state.currentUserId && k===this.orcKey(this.state.currentUserId))patch.orcamentos=val;
+    if(Object.keys(patch).length)this.setState(patch);
+  }
+  async refreshKey(k){
+    if(Object.hasOwn(this.pendingGet(),k)){this.deferRemoteKey(k);return;}
+    try{
+      const r=await fetch(this.apiBase()+'/store/'+encodeURIComponent(k),{cache:'no-store'});
+      if(!r.ok)return;
+      const data=await r.json();
+      if(Object.hasOwn(this.pendingGet(),k)){this.deferRemoteKey(k);return;}
+      this.applyRemoteKey(k,data.value);
+    }catch(e){}
+  }
+  deferRemoteKey(k){
+    this._remoteTimers=this._remoteTimers||{};
+    clearTimeout(this._remoteTimers[k]);
+    this._remoteTimers[k]=setTimeout(()=>{delete this._remoteTimers[k];this.refreshKey(k);},300);
+  }
+  startRealtime(){
+    if(typeof EventSource==='undefined')return;
+    if(this._events)this._events.close();
+    const events=new EventSource(this.apiBase()+'/events');
+    this._events=events;
+    events.addEventListener('ready',()=>this.pullFromServer().then(()=>this.refreshVisibleData()));
+    events.addEventListener('change',e=>{try{const change=JSON.parse(e.data);if(change&&change.key)this.refreshKey(change.key);}catch(err){}});
+  }
+  refreshVisibleData(){
+    const keys=['tccon_materiais','tccon_clientes','tccon_users'];
+    if(this.state.currentUserId)keys.push(this.orcKey(this.state.currentUserId));
+    keys.forEach(k=>{const value=this.lsGet(k);if(value!==null)this.applyRemoteKey(k,value);});
+  }
+  pushKey(k,val){
+    if(typeof k!=='string' || k.indexOf('tccon_')!==0) return Promise.resolve(false);`,
+  'real-time store updates',
+);
+
 bundle = bundle.replace(
   templatePattern,
   (_, open, __, close) =>

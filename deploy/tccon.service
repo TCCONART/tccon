@@ -12,6 +12,7 @@ Environment=HOST=127.0.0.1
 Environment=PORT=3000
 Environment=DATA_DIR=/opt/tccon-orcamentos/data
 Environment=PUBLIC_DIR=/opt/tccon-orcamentos/public
+EnvironmentFile=-/etc/tccon/tccon.env
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=15

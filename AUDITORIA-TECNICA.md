@@ -6,8 +6,9 @@ Data: 24 de julho de 2026.
 
 O código e o processo de execução local foram estabilizados e endurecidos, mas
 o sistema **ainda não deve ser publicado diretamente na internet**. O deploy
-somente é aceitável para uma equipe confiável atrás do Nginx fornecido, com
-autenticação HTTP Basic e HTTPS.
+somente é aceitável para uma equipe confiável atrás do Traefik remoto fornecido,
+com autenticação HTTP Basic e HTTPS. A porta da aplicação deve aceitar conexões
+somente da VPS do Traefik, preferencialmente por rede privada/VPN.
 
 Restam dois riscos estruturais que exigem decisões de produto e governança:
 
@@ -40,10 +41,13 @@ perda e depende de política de acesso, retenção e origem legal.
 Navegador
    │ HTTPS + HTTP Basic
    ▼
-Nginx :443
-   │ HTTP em loopback
+Traefik remoto :443
+   │ HTTP por rede privada/VPN
    ▼
-Node.js :3000
+VPS da aplicação :TCCON_PORT
+   │
+   ▼
+Node.js :3000 (interface e API)
    ├── public/index.html
    ├── data/store.json
    └── data/auth.json
@@ -72,15 +76,15 @@ não estão no repositório.
 1. **API sem sessão/autorização por vendedor — bloqueio de produto.**
    - Causa: estado e `isAdmin` vêm do `localStorage`; as rotas trabalham com um
      mapa compartilhado.
-   - Mitigação: processo publicado somente em loopback; Nginx exige HTTP Basic;
-     documentação proíbe exposição direta.
+   - Mitigação: Traefik exige HTTP Basic; aplicação valida o domínio encaminhado;
+     firewall deve liberar o backend somente para a VPS do Traefik.
    - Pendente: definir papéis, propriedade dos dados, bootstrap administrativo,
      recuperação de senha e retenção antes de criar sessões e ACLs.
 
 2. **Dados pessoais no bundle — bloqueio de governança.**
    - Causa: a exportação incorporou 2.523 clientes no JavaScript.
    - Mitigação: `index.html` usa `Cache-Control: no-store`; acesso externo deve
-     passar pela barreira do Nginx.
+     passar pela barreira do Traefik.
    - Pendente: aprovar migração para armazenamento protegido e acesso por papel.
 
 ### Altos
@@ -118,7 +122,7 @@ não estão no repositório.
   `Content-Type` — corrigidos.
 - Traversal, URL inválida e rotas de API desconhecidas — corrigidos.
 - Health/readiness, timeouts, shutdown e logs estruturados — adicionados.
-- Rate limiting de senha com memória limitada e atraso de 401 no Nginx —
+- Rate limiting de senha no processo e limite adicional no Traefik —
   adicionados.
 - Headers de segurança e CSP compatível com o bundle legado — adicionados.
 - Layout sem breakpoint e overflow móvel — corrigidos para 375 px; tabelas usam
@@ -146,11 +150,14 @@ não estão no repositório.
   migração de senha, idioma e título.
 - `scripts/patch-frontend.js`: aplicação idempotente das correções no artefato.
 - `scripts/validate-frontend.js`: validação estrutural do bundle.
-- `test/server.test.js`, `test/frontend.test.js`: regressões de API,
-  persistência, segurança e bundle.
-- `Dockerfile`, `docker-compose.yml`: runtime mínimo e hardening.
-- `deploy/nginx-tccon.conf`, `deploy/tccon.service`: proxy, autenticação, atraso
-  de falhas, timeouts e hardening.
+- `test/server.test.js`, `test/frontend.test.js`, `test/traefik.test.js`:
+  regressões de API, persistência, domínio, proxy e bundle.
+- `Dockerfile`, `docker-compose.yml`: runtime mínimo, hardening e publicação em
+  IP/porta configuráveis para o proxy remoto.
+- `deploy/traefik-dynamic.yml.template`, `deploy/tccon.service`: roteamento,
+  autenticação, rate limit, TLS, healthcheck e hardening.
+- `scripts/render-traefik-config.js`: geração validada da configuração dinâmica
+  a partir do `.env`, sem versionar os valores reais.
 - `package.json`: comandos de qualidade e bloqueio de publicação npm.
 - `.gitignore`, `.dockerignore`, `.env.example`: higiene e configuração.
 - `LEIA-ME-INSTALACAO.md`: instalação, validação, backup, restauração e rollback.
@@ -159,7 +166,8 @@ não estão no repositório.
 
 - Node.js 24.14.0 do ambiente de auditoria.
 - `node --check` em servidor, scripts e testes.
-- 9 testes nativos aprovados, 0 falhas.
+- 13 testes nativos aprovados, 0 falhas, incluindo domínio e configuração do
+  Traefik.
 - Validador do bundle: 40 recursos, template JSON íntegro.
 - Navegador real em 375 × 812:
   - sem overflow horizontal;
@@ -177,7 +185,8 @@ Não executado neste host:
 
 - `docker compose config`, build/scan da imagem e healthcheck do container:
   Docker não está instalado.
-- `nginx -t`, systemd, Certbot e restauração: o host de auditoria é Windows.
+- carga da configuração no Traefik remoto, systemd, ACME e restauração: o host
+  de auditoria é Windows e não possui acesso às VPSs.
 - teste de carga: não há meta de usuários simultâneos ou staging representativo.
 
 Essas verificações são obrigatórias antes da produção.

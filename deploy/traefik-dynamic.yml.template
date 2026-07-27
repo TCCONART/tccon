@@ -1,0 +1,59 @@
+http:
+  routers:
+    tccon-auth-api:
+      rule: "Host(`${TCCON_DOMAIN}`) && PathPrefix(`/api/auth/`)"
+      entryPoints:
+        - "${TRAEFIK_ENTRYPOINT}"
+      service: tccon
+      priority: 100
+      middlewares:
+        - tccon-basic-auth
+        - tccon-auth-rate-limit
+        - tccon-security
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER}"
+
+    tccon:
+      rule: "Host(`${TCCON_DOMAIN}`)"
+      entryPoints:
+        - "${TRAEFIK_ENTRYPOINT}"
+      service: tccon
+      priority: 10
+      middlewares:
+        - tccon-basic-auth
+        - tccon-security
+      tls:
+        certResolver: "${TRAEFIK_CERT_RESOLVER}"
+
+  services:
+    tccon:
+      loadBalancer:
+        passHostHeader: true
+        healthCheck:
+          path: /api/ready
+          interval: 30s
+          timeout: 3s
+          hostname: "${TCCON_DOMAIN}"
+        servers:
+          - url: "${TCCON_BACKEND_URL}"
+
+  middlewares:
+    tccon-basic-auth:
+      basicAuth:
+        usersFile: "${TRAEFIK_AUTH_USERS_FILE}"
+        removeHeader: true
+
+    tccon-auth-rate-limit:
+      rateLimit:
+        average: 10
+        period: 1m
+        burst: 5
+
+    tccon-security:
+      headers:
+        contentTypeNosniff: true
+        customFrameOptionsValue: SAMEORIGIN
+        referrerPolicy: no-referrer
+        permissionsPolicy: "camera=(), geolocation=(), microphone=()"
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true

@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     init: true
     ports:
-      - "127.0.0.1:${TCCON_PORT:-3000}:3000"
+      - "${TCCON_BIND_IP:-127.0.0.1}:${TCCON_PORT:-3000}:3000"
     volumes:
       - ./data:/app/data
     environment:
@@ -15,6 +15,7 @@ services:
       PUBLIC_DIR: /app/public
       MAX_BODY_BYTES: ${MAX_BODY_BYTES:-20971520}
       MAX_STORE_BYTES: ${MAX_STORE_BYTES:-52428800}
+      TCCON_DOMAIN: ${TCCON_DOMAIN:-}
       NODE_ENV: production
     read_only: true
     tmpfs:
