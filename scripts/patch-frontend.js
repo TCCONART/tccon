@@ -1086,6 +1086,18 @@ template = replaceOnce(
   'quantity total in printed quote',
 );
 
+template = replaceOnce(
+  template,
+  `<div data-quantity-total="editor" class="data-grid" style="display:grid;grid-template-columns:44px 1fr 92px 130px 96px 130px 40px;align-items:center;padding:10px 14px;border-top:1px solid #d8d2c8;background:#faf8f4;">
+            <span style="grid-column:1 / 3;text-align:right;padding-right:14px;font-size:12px;font-weight:700;color:#6b655c;text-transform:uppercase;letter-spacing:.3px;">Quantidade total</span>
+            <span style="text-align:center;font-family:'IBM Plex Mono';font-size:14px;font-weight:700;color:var(--accent,#2f5d86);">{{ quantidadeTotalStr }}</span>
+          </div>`,
+  `<div data-quantity-total="editor" data-quantity-position="description" class="data-grid" style="display:grid;grid-template-columns:44px 1fr 92px 130px 96px 130px 40px;align-items:center;padding:10px 14px;border-top:1px solid #d8d2c8;background:#faf8f4;">
+            <span style="grid-column:2;text-align:left;font-size:12px;font-weight:700;color:#6b655c;text-transform:uppercase;letter-spacing:.3px;">Quantidade total: <strong style="font-family:'IBM Plex Mono';font-size:14px;color:var(--accent,#2f5d86);">{{ quantidadeTotalStr }}</strong></span>
+          </div>`,
+  'quantity total under material description',
+);
+
 bundle = bundle.replace(
   templatePattern,
   (_, open, __, close) =>

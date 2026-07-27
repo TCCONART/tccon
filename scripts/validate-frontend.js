@@ -61,6 +61,7 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     'const quantidadeTotal=s.itens.reduce((a,it)=>a+this.num(it.qtd),0);',
     "quantidadeTotalStr:quantidadeTotal.toLocaleString('pt-BR',{maximumFractionDigits:3})",
     'data-quantity-total="editor"',
+    'data-quantity-position="description"',
     'data-quantity-total="print"',
   ];
   for (const marker of requiredTemplateMarkers) {
