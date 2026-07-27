@@ -964,6 +964,41 @@ template = replaceOnce(
   'save draft before profile logout',
 );
 
+template = replaceOnce(
+  template,
+  `<button sc-camel-on-click="{{ imprimir }}" style="padding:8px 18px;border:none;border-radius:7px;background:var(--accent,#2f5d86);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Imprimir / Salvar PDF</button>`,
+  `<div style="display:flex;align-items:center;gap:8px;">
+          <button sc-camel-on-click="{{ imprimir }}" style="padding:8px 18px;border:1px solid #5a554d;border-radius:7px;background:#fff;color:#2c2924;font-size:13px;font-weight:600;cursor:pointer;">Imprimir</button>
+          <button sc-camel-on-click="{{ salvarPdf }}" style="padding:8px 18px;border:none;border-radius:7px;background:var(--accent,#2f5d86);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Salvar em PDF</button>
+        </div>`,
+  'separate print and PDF buttons',
+);
+
+template = replaceOnce(
+  template,
+  `  saveQuote(){
+    const s=this.state;`,
+  `  savePdf(){
+    const oldTitle=document.title;
+    const numero=String(this.state.numero||'orcamento').trim().replace(/[^a-zA-Z0-9_-]+/g,'-');
+    const restore=()=>{document.title=oldTitle;window.removeEventListener('afterprint',restore);};
+    document.title='Orcamento-'+numero;
+    window.addEventListener('afterprint',restore);
+    setTimeout(()=>window.print(),0);
+    setTimeout(restore,60000);
+  }
+  saveQuote(){
+    const s=this.state;`,
+  'PDF filename from quote number',
+);
+
+template = replaceOnce(
+  template,
+  `verImpressao:()=>this.setState({view:'print'}), voltar:()=>this.setState({view:'editor'}), imprimir:()=>window.print(),`,
+  `verImpressao:()=>this.setState({view:'print'}), voltar:()=>this.setState({view:'editor'}), imprimir:()=>window.print(), salvarPdf:()=>this.savePdf(),`,
+  'PDF save action',
+);
+
 bundle = bundle.replace(
   templatePattern,
   (_, open, __, close) =>
