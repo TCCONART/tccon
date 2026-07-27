@@ -269,12 +269,13 @@ template = replaceOnce(
   'preserve photo for avatar adjustment',
 );
 
-template = replaceOnce(
-  template,
-  `    const empresa=me.empresa||this.EMPRESA_PADRAO();
+if (!template.includes('const avatarStyle=user=>')) {
+  template = replaceOnce(
+    template,
+    `    const empresa=me.empresa||this.EMPRESA_PADRAO();
 
     const dpct=`,
-  `    const empresa=me.empresa||this.EMPRESA_PADRAO();
+    `    const empresa=me.empresa||this.EMPRESA_PADRAO();
     const avatarStyle=user=>{
       const numberOr=(value,fallback)=>Number.isFinite(Number(value))?Number(value):fallback;
       const x=Math.max(0,Math.min(100,numberOr(user.fotoX,50)));
@@ -284,8 +285,9 @@ template = replaceOnce(
     };
 
     const dpct=`,
-  'avatar adjustment style',
-);
+    'avatar adjustment style',
+  );
+}
 
 template = replaceOnce(
   template,
@@ -437,6 +439,87 @@ template = replaceOnce(
   '<div style="display:flex;justify-content:space-between;"><span style="color:#8a8377;font-size:11.5px;">Lucro sobre a venda</span><span style="font-family:\'IBM Plex Mono\';font-size:11.5px;color:#8a8377;">{{ margemVendaStr }}</span></div>',
   '<div style="display:flex;justify-content:space-between;"><span style="color:#8a8377;font-size:11px;">Margem s/ custo</span><span style="font-family:\'IBM Plex Mono\';font-size:11px;color:#8a8377;">{{ margemProdStr }}</span></div>',
   'deemphasize margin over cost',
+);
+
+template = replaceOnce(
+  template,
+  '<span style="display:inline-flex;align-items:center;gap:4px;"><input value="{{ desconto }}" sc-camel-on-input="{{ onDesconto }}" inputmode="decimal" placeholder="0" style="width:56px;text-align:right;padding:5px 7px;border:1px solid #413d36;border-radius:6px;font-size:13px;font-family:\'IBM Plex Mono\';background:#2c2924;color:#f3efe8;"><span style="color:#b3ada2;">%</span></span>',
+  '<span style="display:inline-flex;align-items:center;gap:4px;"><input value="{{ desconto }}" sc-camel-on-input="{{ onDesconto }}" inputmode="text" placeholder="0 ou 10%" title="Use % para percentual; sem % o valor será em reais" style="width:92px;text-align:right;padding:5px 7px;border:1px solid #413d36;border-radius:6px;font-size:13px;font-family:\'IBM Plex Mono\';background:#2c2924;color:#f3efe8;"></span>',
+  'hybrid discount input',
+);
+
+template = replaceAll(
+  template,
+  '{{ descontoPctStr }}',
+  '{{ descontoModoStr }}',
+  'discount mode labels',
+);
+
+template = replaceOnce(
+  template,
+  `  computeTotals(){
+    const s=this.state;
+    const subtotal=s.itens.reduce((a,it)=>a+this.num(it.qtd)*this.num(it.vunit),0);
+    const dpct=Math.max(0,Math.min(100,this.num(s.desconto)));
+    const descontoRs=subtotal*dpct/100;
+    const liquido=subtotal-descontoRs;
+    const tpct=Math.max(0,this.num(s.taxaCartao));
+    const taxaRs=liquido*tpct/100;
+    const total=liquido+taxaRs;
+    return {subtotal,descontoRs,taxaRs,total};
+  }`,
+  `  computeTotals(){
+    const s=this.state;
+    const subtotal=s.itens.reduce((a,it)=>a+this.num(it.qtd)*this.num(it.vunit),0);
+    const descontoTexto=String(s.desconto||'').trim();
+    const descontoEhPercentual=descontoTexto.includes('%');
+    const descontoInformado=Math.max(0,this.num(descontoTexto.replace('%','')));
+    const descontoRs=Math.min(subtotal,descontoEhPercentual?subtotal*Math.min(100,descontoInformado)/100:descontoInformado);
+    const liquido=subtotal-descontoRs;
+    const tpct=Math.max(0,this.num(s.taxaCartao));
+    const taxaRs=liquido*tpct/100;
+    const total=liquido+taxaRs;
+    return {subtotal,descontoRs,taxaRs,total};
+  }`,
+  'hybrid discount totals',
+);
+
+template = replaceOnce(
+  template,
+  `    const dpct=Math.max(0,Math.min(100,this.num(s.desconto)));
+    const tpct=Math.max(0,this.num(s.taxaCartao));
+    const rows=s.itens.map((it,i)=>{`,
+  `    const subtotal=s.itens.reduce((a,it)=>a+this.num(it.qtd)*this.num(it.vunit),0);
+    const descontoTexto=String(s.desconto||'').trim();
+    const descontoEhPercentual=descontoTexto.includes('%');
+    const descontoInformado=Math.max(0,this.num(descontoTexto.replace('%','')));
+    const descontoRs=Math.min(subtotal,descontoEhPercentual?subtotal*Math.min(100,descontoInformado)/100:descontoInformado);
+    const dpct=subtotal>0?descontoRs/subtotal*100:0;
+    const tpct=Math.max(0,this.num(s.taxaCartao));
+    const rows=s.itens.map((it,i)=>{`,
+  'hybrid discount analysis',
+);
+
+template = replaceOnce(
+  template,
+  `    const subtotal=rows.reduce((a,r)=>a+r._total,0);
+    const pesoTotal=rows.reduce((a,r)=>a+r._peso,0);
+    const custoTotal=rows.reduce((a,r)=>a+r._custo,0);
+    const subtotalBase=rows.reduce((a,r)=>a+r._baseVenda,0);
+    const descontoRs=subtotal*dpct/100;
+    const totalLiquido=subtotal-descontoRs;`,
+  `    const pesoTotal=rows.reduce((a,r)=>a+r._peso,0);
+    const custoTotal=rows.reduce((a,r)=>a+r._custo,0);
+    const subtotalBase=rows.reduce((a,r)=>a+r._baseVenda,0);
+    const totalLiquido=subtotal-descontoRs;`,
+  'single hybrid discount calculation',
+);
+
+template = replaceOnce(
+  template,
+  `      hasDescontoTotal:dpct>0, descontoPctStr:dpct.toLocaleString('pt-BR',{maximumFractionDigits:2})+'%', descontoRsStr:'−'+this.brl(descontoRs),`,
+  `      hasDescontoTotal:descontoRs>0, descontoModoStr:descontoEhPercentual?(Math.min(100,descontoInformado).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%'):'valor fixo', descontoRsStr:'−'+this.brl(descontoRs),`,
+  'hybrid discount display',
 );
 
 const oldSync = `  async pullFromServer(){
