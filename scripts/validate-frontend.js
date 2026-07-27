@@ -37,7 +37,8 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     'Ajustar foto no ícone',
     'onMeFotoZoom',
     'avatarStyle',
-    'width:76px;height:76px;border-radius:50%',
+    'width:96px;height:96px;border-radius:50%',
+    'width:128px;height:128px',
   ];
   for (const marker of requiredTemplateMarkers) {
     if (!template.includes(marker)) throw new Error(`Frontend marker is missing: ${marker}`);

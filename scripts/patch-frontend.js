@@ -213,12 +213,14 @@ template = replaceOnce(
   'toast live region',
 );
 
-template = replaceOnce(
-  template,
-  '<div style="width:30px;height:30px;border-radius:50%;background:var(--accent,#2f5d86);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;font-family:\'Barlow Semi Condensed\';">{{ meInitials }}</div>',
-  '<div style="width:30px;height:30px;border-radius:50%;overflow:hidden;background:var(--accent,#2f5d86);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;font-family:\'Barlow Semi Condensed\';">{{ meHeaderFotoImg }}<sc-if value="{{ meNoFoto }}" hint-placeholder-val="{{ true }}"><span>{{ meInitials }}</span></sc-if></div>',
-  'adjusted photo in toolbar',
-);
+if (!template.includes('{{ meHeaderFotoImg }}')) {
+  template = replaceOnce(
+    template,
+    '<div style="width:30px;height:30px;border-radius:50%;background:var(--accent,#2f5d86);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;font-family:\'Barlow Semi Condensed\';">{{ meInitials }}</div>',
+    '<div style="width:30px;height:30px;border-radius:50%;overflow:hidden;background:var(--accent,#2f5d86);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;font-family:\'Barlow Semi Condensed\';">{{ meHeaderFotoImg }}<sc-if value="{{ meNoFoto }}" hint-placeholder-val="{{ true }}"><span>{{ meInitials }}</span></sc-if></div>',
+    'adjusted photo in toolbar',
+  );
+}
 
 template = replaceOnce(
   template,
@@ -330,6 +332,27 @@ template = replaceOnce(
   'width:72px;height:72px;flex:none;border-radius:50%;overflow:hidden;background:linear-gradient(140deg,var(--accent,#2f5d86),#24486a);',
   'width:96px;height:96px;flex:none;border-radius:50%;overflow:hidden;background:linear-gradient(140deg,var(--accent,#2f5d86),#24486a);',
   'larger profile photo preview',
+);
+
+template = replaceOnce(
+  template,
+  'width:76px;height:76px;border-radius:50%;overflow:hidden;background:{{ u.avatarBg }};',
+  'width:96px;height:96px;border-radius:50%;overflow:hidden;background:{{ u.avatarBg }};',
+  'extra-large profile selection photo',
+);
+
+template = replaceOnce(
+  template,
+  'width:38px;height:38px;border-radius:50%;overflow:hidden;background:var(--accent,#2f5d86);',
+  'width:48px;height:48px;border-radius:50%;overflow:hidden;background:var(--accent,#2f5d86);',
+  'extra-large toolbar photo',
+);
+
+template = replaceOnce(
+  template,
+  'width:96px;height:96px;flex:none;border-radius:50%;overflow:hidden;background:linear-gradient(140deg,var(--accent,#2f5d86),#24486a);',
+  'width:128px;height:128px;flex:none;border-radius:50%;overflow:hidden;background:linear-gradient(140deg,var(--accent,#2f5d86),#24486a);',
+  'extra-large profile photo preview',
 );
 
 const oldSync = `  async pullFromServer(){
