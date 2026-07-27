@@ -425,6 +425,20 @@ template = replaceOnce(
   'version-aware realtime connection',
 );
 
+template = replaceOnce(
+  template,
+  '<div style="display:flex;justify-content:space-between;align-items:baseline;background:#fff;border:1px solid #dbe4ec;border-radius:8px;padding:8px 11px;margin-top:4px;"><span style="color:#4a463f;font-weight:600;">Margem s/ custo</span><span style="font-family:\'IBM Plex Mono\';font-weight:700;font-size:17px;color:var(--accent,#2f5d86);">{{ margemProdStr }}</span></div>',
+  '<div style="display:flex;justify-content:space-between;align-items:baseline;background:#fff;border:1px solid #dbe4ec;border-radius:8px;padding:10px 12px;margin-top:4px;"><span style="color:#4a463f;font-weight:700;">Lucro sobre a venda</span><span style="font-family:\'IBM Plex Mono\';font-weight:700;font-size:20px;color:var(--accent,#2f5d86);">{{ margemVendaStr }}</span></div>',
+  'highlight profit over sale',
+);
+
+template = replaceOnce(
+  template,
+  '<div style="display:flex;justify-content:space-between;"><span style="color:#8a8377;font-size:11.5px;">Lucro sobre a venda</span><span style="font-family:\'IBM Plex Mono\';font-size:11.5px;color:#8a8377;">{{ margemVendaStr }}</span></div>',
+  '<div style="display:flex;justify-content:space-between;"><span style="color:#8a8377;font-size:11px;">Margem s/ custo</span><span style="font-family:\'IBM Plex Mono\';font-size:11px;color:#8a8377;">{{ margemProdStr }}</span></div>',
+  'deemphasize margin over cost',
+);
+
 const oldSync = `  async pullFromServer(){
     try{
       const r=await fetch(this.apiBase()+'/store',{cache:'no-store'});

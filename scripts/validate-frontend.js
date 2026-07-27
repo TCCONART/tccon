@@ -42,6 +42,7 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     'startVersionPolling',
     "this.apiBase()+'/version'",
     'window.location.reload()',
+    'font-weight:700;font-size:20px;color:var(--accent,#2f5d86);">{{ margemVendaStr }}',
   ];
   for (const marker of requiredTemplateMarkers) {
     if (!template.includes(marker)) throw new Error(`Frontend marker is missing: ${marker}`);
