@@ -363,59 +363,31 @@ template = replaceOnce(
   'extra-large profile photo preview',
 );
 
-template = replaceOnce(
-  template,
-  `  componentWillUnmount(){
+if (!template.includes('clearInterval(this._versionTimer);')) {
+  template = replaceOnce(
+    template,
+    `  componentWillUnmount(){
     if(this._events)this._events.close();
     Object.values(this._remoteTimers||{}).forEach(clearTimeout);
     clearTimeout(this._t);
   }`,
-  `  componentWillUnmount(){
+    `  componentWillUnmount(){
     if(this._events)this._events.close();
     Object.values(this._remoteTimers||{}).forEach(clearTimeout);
     clearInterval(this._versionTimer);
     if(this._onWindowFocus)window.removeEventListener('focus',this._onWindowFocus);
     clearTimeout(this._t);
   }`,
-  'automatic update cleanup',
-);
+    'automatic update cleanup',
+  );
+}
 
-template = replaceOnce(
-  template,
-  `  apiBase(){ return (typeof window!=='undefined' && window.__TCCON_API) ? window.__TCCON_API : '/api'; }
-  bootstrapApp(){ this.pullFromServer().then(()=>{this.initData();this.startRealtime();}); }`,
-  `  apiBase(){ return (typeof window!=='undefined' && window.__TCCON_API) ? window.__TCCON_API : '/api'; }
-  async checkAppVersion(reloadOnChange=true){
-    try{
-      const r=await fetch(this.apiBase()+'/version',{cache:'no-store'});
-      if(!r.ok)return false;
-      const data=await r.json(),next=data&&data.version;
-      if(next&&this._appVersion&&next!==this._appVersion&&reloadOnChange){window.location.reload();return true;}
-      if(next)this._appVersion=next;
-    }catch(e){}
-    return false;
-  }
-  startVersionPolling(){
-    clearInterval(this._versionTimer);
-    this._versionTimer=setInterval(()=>this.checkAppVersion(true),15000);
-    this._onWindowFocus=()=>{this.checkAppVersion(true);this.pullFromServer().then(()=>this.refreshVisibleData());};
-    window.addEventListener('focus',this._onWindowFocus);
-  }
-  async bootstrapApp(){
-    await this.checkAppVersion(false);
-    await this.pullFromServer();
-    this.initData();
-    this.startRealtime();
-    this.startVersionPolling();
-  }`,
-  'automatic application updates',
-);
-
-template = replaceOnce(
-  template,
-  `    events.addEventListener('ready',()=>this.pullFromServer().then(()=>this.refreshVisibleData()));
+if (!template.includes(`events.addEventListener('ready',e=>{`)) {
+  template = replaceOnce(
+    template,
+    `    events.addEventListener('ready',()=>this.pullFromServer().then(()=>this.refreshVisibleData()));
     events.addEventListener('change',e=>{try{const change=JSON.parse(e.data);if(change&&change.key)this.refreshKey(change.key);}catch(err){}});`,
-  `    events.addEventListener('ready',e=>{
+    `    events.addEventListener('ready',e=>{
       try{
         const ready=JSON.parse(e.data);
         if(ready&&ready.version&&this._appVersion&&ready.version!==this._appVersion){window.location.reload();return;}
@@ -424,8 +396,9 @@ template = replaceOnce(
       this.pullFromServer().then(()=>this.refreshVisibleData());
     });
     events.addEventListener('change',e=>{try{const change=JSON.parse(e.data);if(change&&change.key)this.refreshKey(change.key);}catch(err){}});`,
-  'version-aware realtime connection',
-);
+    'version-aware realtime connection',
+  );
+}
 
 template = replaceOnce(
   template,
@@ -776,23 +749,26 @@ template = replaceOnce(
   'system access state',
 );
 
-template = replaceOnce(
-  template,
-  `  componentDidMount(){
+if (!template.includes('    this.checkGate();')) {
+  template = replaceOnce(
+    template,
+    `  componentDidMount(){
     this.setState({data:this.today(), numero:this.genNumero(), markup:this.props.markupPadrao ?? 2, showMargem:this.props.mostrarMargem ?? false});
     this.pullFromServer().then(()=>{this.initData();this.startRealtime();});
   }`,
-  `  componentDidMount(){
+    `  componentDidMount(){
     this.setState({data:this.today(), numero:this.genNumero(), markup:this.props.markupPadrao ?? 2, showMargem:this.props.mostrarMargem ?? false});
     this.checkGate();
   }`,
-  'system access startup',
-);
+    'system access startup',
+  );
+}
 
-template = replaceOnce(
-  template,
-  `  apiBase(){ return (typeof window!=='undefined' && window.__TCCON_API) ? window.__TCCON_API : '/api'; }`,
-  `  apiBase(){ return (typeof window!=='undefined' && window.__TCCON_API) ? window.__TCCON_API : '/api'; }
+if (!template.includes('  async checkGate(){')) {
+  template = replaceOnce(
+    template,
+    `  apiBase(){ return (typeof window!=='undefined' && window.__TCCON_API) ? window.__TCCON_API : '/api'; }`,
+    `  apiBase(){ return (typeof window!=='undefined' && window.__TCCON_API) ? window.__TCCON_API : '/api'; }
   bootstrapApp(){ this.pullFromServer().then(()=>{this.initData();this.startRealtime();}); }
   async checkGate(){
     try{
@@ -814,8 +790,9 @@ template = replaceOnce(
       this.bootstrapApp();
     }catch(e){this.setState({gateBusy:false,gateError:'Não foi possível conectar ao servidor.'});}
   }`,
-  'system access behavior',
-);
+    'system access behavior',
+  );
+}
 
 template = replaceOnce(
   template,
@@ -830,6 +807,161 @@ template = replaceOnce(
       onGateKey:e=>{if(e.key==='Enter'){e.preventDefault();this.loginGate();}},
       isLogin:s.gateAuthenticated&&!s.currentUserId, isApp:s.gateAuthenticated&&!!s.currentUserId&&s.view!=='print', isPrint:s.gateAuthenticated&&s.view==='print',`,
   'system access render values',
+);
+
+template = replaceOnce(
+  template,
+  `  componentDidMount(){
+    this.setState({data:this.today(), numero:this.genNumero(), markup:this.props.markupPadrao ?? 2, showMargem:this.props.mostrarMargem ?? false});
+    this.checkGate();
+  }
+  componentWillUnmount(){
+    if(this._events)this._events.close();
+    Object.values(this._remoteTimers||{}).forEach(clearTimeout);
+    clearInterval(this._versionTimer);
+    if(this._onWindowFocus)window.removeEventListener('focus',this._onWindowFocus);
+    clearTimeout(this._t);
+  }`,
+  `  componentDidMount(){
+    this.setState({data:this.today(), numero:this.genNumero(), markup:this.props.markupPadrao ?? 2, showMargem:this.props.mostrarMargem ?? false});
+    this._onBeforeUnload=()=>this.saveDraftNow();
+    window.addEventListener('beforeunload',this._onBeforeUnload);
+    this.checkGate();
+  }
+  componentDidUpdate(prevProps,prevState){
+    if(!this.state.currentUserId)return;
+    if(JSON.stringify(this.draftSnapshot(prevState))===JSON.stringify(this.draftSnapshot(this.state)))return;
+    clearTimeout(this._draftTimer);
+    this._draftTimer=setTimeout(()=>this.saveDraftNow(),350);
+  }
+  componentWillUnmount(){
+    this.saveDraftNow();
+    clearTimeout(this._draftTimer);
+    if(this._onBeforeUnload)window.removeEventListener('beforeunload',this._onBeforeUnload);
+    if(this._events)this._events.close();
+    Object.values(this._remoteTimers||{}).forEach(clearTimeout);
+    clearInterval(this._versionTimer);
+    if(this._onWindowFocus)window.removeEventListener('focus',this._onWindowFocus);
+    clearTimeout(this._t);
+  }`,
+  'automatic draft lifecycle',
+);
+
+const syncSectionStart = template.indexOf('  apiBase(){');
+const pendingSectionStart = template.indexOf('  pendingGet(){', syncSectionStart);
+if (syncSectionStart < 0 || pendingSectionStart < 0) {
+  throw new Error('Synchronization section was not found');
+}
+const canonicalSyncStartup = `  apiBase(){ return (typeof window!=='undefined' && window.__TCCON_API) ? window.__TCCON_API : '/api'; }
+  async checkGate(){
+    try{
+      const r=await fetch(this.apiBase()+'/gate/session',{cache:'no-store'});
+      const data=await r.json();
+      if(data&&data.authenticated){this.setState({gateChecked:true,gateAuthenticated:true});this.bootstrapApp();return;}
+    }catch(e){}
+    this.setState({gateChecked:true,gateAuthenticated:false,loaded:true});
+  }
+  async loginGate(){
+    if(this.state.gateBusy)return;
+    const usuario=this.state.gateUser.trim(),senha=this.state.gatePassword;
+    if(!usuario||!senha){this.setState({gateError:'Informe o usu\u00e1rio e a senha.'});return;}
+    this.setState({gateBusy:true,gateError:''});
+    try{
+      const r=await fetch(this.apiBase()+'/gate/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({usuario,senha})});
+      if(!r.ok){this.setState({gateBusy:false,gatePassword:'',gateError:r.status===429?'Muitas tentativas. Aguarde alguns minutos.':'Usu\u00e1rio ou senha incorretos.'});return;}
+      this.setState({gateBusy:false,gatePassword:'',gateAuthenticated:true,loaded:false});
+      this.bootstrapApp();
+    }catch(e){this.setState({gateBusy:false,gateError:'N\u00e3o foi poss\u00edvel conectar ao servidor.'});}
+  }
+  async checkAppVersion(reloadOnChange=true){
+    try{
+      const r=await fetch(this.apiBase()+'/version',{cache:'no-store'});
+      if(!r.ok)return false;
+      const data=await r.json(),next=data&&data.version;
+      if(next&&this._appVersion&&next!==this._appVersion&&reloadOnChange){this.reloadForUpdate();return true;}
+      if(next)this._appVersion=next;
+    }catch(e){}
+    return false;
+  }
+  async reloadForUpdate(){
+    if(this._reloading)return;
+    this._reloading=true;
+    await this.saveDraftNow();
+    for(let i=0;i<3&&Object.keys(this.pendingGet()).length;i++)await this.flushPending();
+    window.location.reload();
+  }
+  startVersionPolling(){
+    clearInterval(this._versionTimer);
+    this._versionTimer=setInterval(()=>this.checkAppVersion(true),15000);
+    this._onWindowFocus=()=>{this.checkAppVersion(true);this.pullFromServer().then(()=>this.refreshVisibleData());};
+    window.addEventListener('focus',this._onWindowFocus);
+  }
+  async bootstrapApp(){
+    await this.checkAppVersion(false);
+    await this.pullFromServer();
+    this.initData();
+    this.startRealtime();
+    this.startVersionPolling();
+  }
+`;
+template =
+  template.slice(0, syncSectionStart) +
+  canonicalSyncStartup +
+  template.slice(pendingSectionStart);
+template = template.replaceAll(
+  `ready.version!==this._appVersion){window.location.reload();return;}`,
+  `ready.version!==this._appVersion){this.reloadForUpdate();return;}`,
+);
+
+template = replaceOnce(
+  template,
+  `  curUser(){ return this.state.users.find(u=>u.id===this.state.currentUserId)||null; }
+  orcKey(id){ return 'tccon_orcamentos_'+id; }`,
+  `  curUser(){ return this.state.users.find(u=>u.id===this.state.currentUserId)||null; }
+  orcKey(id){ return 'tccon_orcamentos_'+id; }
+  draftKey(id){ return 'tccon_rascunho_'+id; }
+  draftSnapshot(s){
+    return {
+      editingId:s.editingId,numero:s.numero,data:s.data,validade:s.validade,
+      cliente:s.cliente,itens:s.itens,markup:s.markup,desconto:s.desconto,
+      imposto:s.imposto,comissao:s.comissao,aplicaComissao:s.aplicaComissao,
+      freteCusto:s.freteCusto,taxaCartao:s.taxaCartao,margemAlvo:s.margemAlvo,
+      lucroInicial:s.lucroInicial,pagamento:s.pagamento,obs:s.obs,
+      showMargem:s.showMargem,printMargem:s.printMargem
+    };
+  }
+  draftPatch(value){
+    if(!value||typeof value!=='object')return {};
+    const allowed=Object.keys(this.draftSnapshot(this.state)),patch={};
+    allowed.forEach(k=>{if(Object.hasOwn(value,k))patch[k]=value[k];});
+    return patch;
+  }
+  saveDraftNow(){
+    clearTimeout(this._draftTimer);
+    const id=this.state.currentUserId;
+    if(!id)return Promise.resolve(true);
+    const draft={...this.draftSnapshot(this.state),updatedAt:Date.now()};
+    try{localStorage.setItem(this.draftKey(id),JSON.stringify(draft));}catch(e){}
+    return this.pushKey(this.draftKey(id),draft);
+  }`,
+  'persistent quote drafts',
+);
+
+template = replaceOnce(
+  template,
+  `    const orcamentos=this.lsGet(this.orcKey(id))||[];
+    this.setState({currentUserId:id, orcamentos, view:'editor', editingId:null});`,
+  `    const orcamentos=this.lsGet(this.orcKey(id))||[];
+    const draft=this.draftPatch(this.lsGet(this.draftKey(id)));
+    this.setState({...draft,currentUserId:id,orcamentos,view:'editor'});`,
+  'restore persistent quote draft',
+);
+
+template = replaceOnce(
+  template,
+  `  logout(){ this.setState({currentUserId:null, view:'editor'}); }`,
+  `  logout(){ this.saveDraftNow(); this.setState({currentUserId:null, view:'editor'}); }`,
+  'save draft before profile logout',
 );
 
 bundle = bundle.replace(

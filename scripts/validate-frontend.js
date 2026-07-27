@@ -42,6 +42,12 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     'startVersionPolling',
     "this.apiBase()+'/version'",
     'window.location.reload()',
+    'reloadForUpdate',
+    'draftKey(id)',
+    'tccon_rascunho_',
+    'saveDraftNow',
+    'componentDidUpdate(prevProps,prevState)',
+    "window.addEventListener('beforeunload'",
     'font-weight:700;font-size:20px;color:var(--accent,#2f5d86);">{{ margemVendaStr }}',
     'placeholder="0 ou 10%"',
     "descontoTexto.includes('%')",
@@ -49,6 +55,11 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
   ];
   for (const marker of requiredTemplateMarkers) {
     if (!template.includes(marker)) throw new Error(`Frontend marker is missing: ${marker}`);
+  }
+  for (const marker of ['async checkAppVersion', 'startVersionPolling(){', 'async bootstrapApp']) {
+    if (template.split(marker).length !== 2) {
+      throw new Error(`Frontend lifecycle marker must occur exactly once: ${marker}`);
+    }
   }
   for (const marker of ['Esqueci minha senha', 'toggle-senha', '/api/gate/reset']) {
     if (!login.includes(marker)) throw new Error(`Login marker is missing: ${marker}`);

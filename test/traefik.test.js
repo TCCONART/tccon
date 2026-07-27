@@ -9,6 +9,15 @@ const { renderTraefikConfig, validate } = require('../scripts/render-traefik-con
 
 const TEMPLATE = path.resolve(__dirname, '..', 'deploy', 'traefik-dynamic.yml.template');
 
+test('production data stays in a persistent host directory across updates', () => {
+  const compose = fs.readFileSync(path.resolve(__dirname, '..', 'docker-compose.yml'), 'utf8');
+  const dockerignore = fs.readFileSync(path.resolve(__dirname, '..', '.dockerignore'), 'utf8');
+
+  assert.match(compose, /-\s+\.\/data:\/app\/data/);
+  assert.match(compose, /DATA_DIR:\s+\/app\/data/);
+  assert.match(dockerignore, /^data\/$/m);
+});
+
 test('Traefik configuration is rendered from validated environment values', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tccon-traefik-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
