@@ -72,6 +72,23 @@ Principais variáveis:
 | `TRAEFIK_CERT_RESOLVER` | `letsencrypt` | resolvedor ACME existente no Traefik |
 | `TRAEFIK_AUTH_USERS_FILE` | `/etc/traefik/tccon-users` | arquivo de usuários na VPS do Traefik |
 
+Para que o botão **Esqueci minha senha** envie a solicitação ao financeiro,
+configure também uma conta SMTP autorizada no `.env` da VPS:
+
+```dotenv
+TCCON_SMTP_HOST=smtp.seuprovedor.com.br
+TCCON_SMTP_PORT=587
+TCCON_SMTP_SECURE=false
+TCCON_SMTP_USER=conta-de-envio@tccon.com.br
+TCCON_SMTP_PASSWORD=senha-ou-token-do-provedor
+TCCON_SMTP_FROM=conta-de-envio@tccon.com.br
+TCCON_PASSWORD_RESET_TO=financeiro@tccon.com.br
+```
+
+Use `TCCON_SMTP_SECURE=true` para SMTP TLS implícito, normalmente na porta
+465. Na porta 587, mantenha `false`; o servidor exige e negocia STARTTLS antes
+de autenticar. A senha SMTP deve existir somente no `.env` da VPS.
+
 `TCCON_DOMAIN` também limita o cabeçalho `Host` aceito pela aplicação. Os nomes
 `localhost` e os IPs de loopback continuam liberados para healthchecks locais.
 O `.env` real é ignorado pelo Git; somente `.env.example` deve ser versionado.

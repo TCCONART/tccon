@@ -584,6 +584,7 @@ function createApplication(options = {}) {
       }
       const tracker = checkResetRateLimit(req);
       if (!passwordResetNotifier) throw new HttpError(503, 'reset_email_unavailable');
+      recordResetRequest(tracker);
       try {
         await passwordResetNotifier({
           username,
@@ -597,7 +598,6 @@ function createApplication(options = {}) {
         });
         throw new HttpError(503, 'reset_email_unavailable');
       }
-      recordResetRequest(tracker);
       logger('info', 'password_reset_requested', { destination: 'financeiro' });
       return sendJson(res, 202, { ok: true });
     }

@@ -24,6 +24,14 @@
     button{width:100%;height:46px;margin-top:4px;border:0;border-radius:9px;background:#2f5d86;color:#fff;font-size:14px;font-weight:700;cursor:pointer}
     button:disabled{opacity:.65;cursor:wait}
     #error{display:none;margin:0 0 12px;padding:10px 12px;border-radius:8px;background:#f9e9e7;color:#9a3f35;font-size:13px}
+    #notice{display:none;margin:0 0 12px;padding:10px 12px;border-radius:8px;background:#e7f3eb;color:#2f6b45;font-size:13px;line-height:1.45}
+    .password-wrap{position:relative;margin-bottom:8px}
+    .password-wrap input{margin-bottom:0;padding-right:48px}
+    #toggle-senha{position:absolute;right:4px;top:4px;width:36px;height:36px;margin:0;padding:8px;border-radius:7px;background:transparent;color:#686157;display:grid;place-items:center}
+    #toggle-senha:hover{background:#f0ece5;color:#2f5d86}
+    #toggle-senha svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    #redefinir{height:auto;margin:0 0 16px;padding:6px 2px;background:transparent;color:#2f5d86;text-align:right;font-size:13px;font-weight:700}
+    #redefinir:hover{text-decoration:underline}
     @media(max-width:760px){.page{grid-template-columns:1fr}.brand{min-height:250px;padding:30px 24px}.access{padding:30px 18px}.card{padding:28px 22px}.title{font-size:34px}}
   </style>
 </head>
@@ -42,10 +50,20 @@
         <h1>Acesso ao sistema</h1>
         <p class="intro">Informe suas credenciais para visualizar os usuários dos orçamentos.</p>
         <div id="error" role="alert"></div>
+        <div id="notice" role="status"></div>
         <label for="usuario">USUÁRIO</label>
         <input id="usuario" name="usuario" autocomplete="username" required placeholder="Digite seu usuário">
         <label for="senha">SENHA</label>
-        <input id="senha" name="senha" type="password" autocomplete="current-password" required placeholder="Digite sua senha">
+        <div class="password-wrap">
+          <input id="senha" name="senha" type="password" autocomplete="current-password" required placeholder="Digite sua senha">
+          <button id="toggle-senha" type="button" aria-label="Mostrar senha" title="Mostrar senha">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path>
+              <circle cx="12" cy="12" r="2.8"></circle>
+            </svg>
+          </button>
+        </div>
+        <button id="redefinir" type="button">Esqueci minha senha</button>
         <button id="entrar" type="submit">Entrar</button>
       </form>
     </section>
@@ -53,10 +71,60 @@
   <script>
     const form=document.getElementById('login-form');
     const errorBox=document.getElementById('error');
+    const noticeBox=document.getElementById('notice');
     const button=document.getElementById('entrar');
+    const resetButton=document.getElementById('redefinir');
+    const passwordInput=document.getElementById('senha');
+    const passwordToggle=document.getElementById('toggle-senha');
+
+    passwordToggle.addEventListener('click',()=>{
+      const visible=passwordInput.type==='text';
+      passwordInput.type=visible?'password':'text';
+      const label=visible?'Mostrar senha':'Ocultar senha';
+      passwordToggle.setAttribute('aria-label',label);
+      passwordToggle.setAttribute('title',label);
+      passwordInput.focus();
+    });
+
+    resetButton.addEventListener('click',async()=>{
+      errorBox.style.display='none';
+      noticeBox.style.display='none';
+      const usuario=form.usuario.value.trim();
+      if(!usuario){
+        errorBox.textContent='Informe o usuário para solicitar a redefinição.';
+        errorBox.style.display='block';
+        form.usuario.focus();
+        return;
+      }
+      resetButton.disabled=true;
+      resetButton.textContent='Enviando solicitação...';
+      try{
+        const response=await fetch('/api/gate/reset',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({usuario})
+        });
+        if(response.ok){
+          noticeBox.textContent='Solicitação enviada para financeiro@tccon.com.br. Aguarde o contato para redefinir sua senha.';
+          noticeBox.style.display='block';
+        }else{
+          errorBox.textContent=response.status===429
+            ?'Muitas solicitações. Aguarde alguns minutos.'
+            :'Não foi possível enviar agora. Entre em contato com financeiro@tccon.com.br.';
+          errorBox.style.display='block';
+        }
+      }catch{
+        errorBox.textContent='Não foi possível conectar ao servidor.';
+        errorBox.style.display='block';
+      }
+      resetButton.disabled=false;
+      resetButton.textContent='Esqueci minha senha';
+    });
+
     form.addEventListener('submit',async event=>{
       event.preventDefault();
       errorBox.style.display='none';
+      noticeBox.style.display='none';
       button.disabled=true;
       button.textContent='Entrando...';
       try{

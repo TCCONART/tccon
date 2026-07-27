@@ -104,6 +104,68 @@ test('system access requires a valid gate login and protected session cookie', a
   assert.match(unlockedPage.text, /Quem est.+ atendendo/);
 });
 
+test('password reset requests notify finance without exposing or changing passwords', async (t) => {
+  const notifications = [];
+  const { server } = await fixture(t, {
+    gateEnabled: true,
+    gateUsername: 'system-user',
+    gatePassword: 'system-password',
+    passwordResetNotifier: async (requestDetails) => notifications.push(requestDetails),
+  });
+
+  const requested = await request(server, '/api/gate/reset', {
+    method: 'POST',
+    headers: { 'User-Agent': 'TCCON test browser' },
+    body: { usuario: 'system-user' },
+  });
+  assert.equal(requested.status, 202);
+  assert.deepEqual(requested.json, { ok: true });
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].username, 'system-user');
+  assert.equal(notifications[0].userAgent, 'TCCON test browser');
+  assert.match(notifications[0].requestedAt, /^\d{4}-\d{2}-\d{2}T/);
+
+  const stillValid = await request(server, '/api/gate/login', {
+    method: 'POST',
+    body: { usuario: 'system-user', senha: 'system-password' },
+  });
+  assert.equal(stillValid.status, 200);
+
+  const crossSite = await request(server, '/api/gate/reset', {
+    method: 'POST',
+    headers: { 'Sec-Fetch-Site': 'cross-site' },
+    body: { usuario: 'system-user' },
+  });
+  assert.equal(crossSite.status, 403);
+
+  for (let index = 0; index < 2; index += 1) {
+    const additional = await request(server, '/api/gate/reset', {
+      method: 'POST',
+      body: { usuario: 'system-user' },
+    });
+    assert.equal(additional.status, 202);
+  }
+  const limited = await request(server, '/api/gate/reset', {
+    method: 'POST',
+    body: { usuario: 'system-user' },
+  });
+  assert.equal(limited.status, 429);
+  assert.equal(limited.json.error, 'too_many_attempts');
+});
+
+test('password reset reports an unavailable email service safely', async (t) => {
+  const { server } = await fixture(t, {
+    gateEnabled: true,
+    passwordResetNotifier: null,
+  });
+  const response = await request(server, '/api/gate/reset', {
+    method: 'POST',
+    body: { usuario: 'system-user' },
+  });
+  assert.equal(response.status, 503);
+  assert.equal(response.json.error, 'reset_email_unavailable');
+});
+
 test('health, readiness and static responses are hardened', async (t) => {
   const { server } = await fixture(t);
 
