@@ -102,6 +102,13 @@ test('system access requires a valid gate login and protected session cookie', a
   assert.deepEqual(active.json, { authenticated: true });
   const unlockedPage = await request(server, '/', { headers: { Cookie: cookie } });
   assert.match(unlockedPage.text, /Quem est.+ atendendo/);
+
+  const mixedCaseLogin = await request(server, '/api/gate/login', {
+    method: 'POST',
+    body: { usuario: ' System-User ', senha: 'system-password' },
+  });
+  assert.equal(mixedCaseLogin.status, 200);
+  assert.equal(mixedCaseLogin.json.ok, true);
 });
 
 test('password reset requests notify finance without exposing or changing passwords', async (t) => {

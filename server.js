@@ -473,8 +473,10 @@ function createApplication(options = {}) {
   }
 
   function credentialsMatch(username, password) {
-    const usernameHash = crypto.createHash('sha256').update(String(username)).digest();
-    const expectedUsernameHash = crypto.createHash('sha256').update(gateUsername).digest();
+    const normalizedUsername = String(username).trim().toLocaleLowerCase('pt-BR');
+    const normalizedExpectedUsername = gateUsername.trim().toLocaleLowerCase('pt-BR');
+    const usernameHash = crypto.createHash('sha256').update(normalizedUsername).digest();
+    const expectedUsernameHash = crypto.createHash('sha256').update(normalizedExpectedUsername).digest();
     const passwordHash = crypto.createHash('sha256').update(String(password)).digest();
     const expectedPasswordHash = Buffer.from(gatePasswordHash, 'hex');
     return crypto.timingSafeEqual(usernameHash, expectedUsernameHash) &&
