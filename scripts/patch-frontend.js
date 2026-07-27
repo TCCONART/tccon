@@ -482,6 +482,7 @@ template = replaceOnce(
     const descontoRs=subtotal*dpct/100;
     const totalLiquido=subtotal-descontoRs;`,
   `    const pesoTotal=rows.reduce((a,r)=>a+r._peso,0);
+    const quantidadeTotal=s.itens.reduce((a,it)=>a+this.num(it.qtd),0);
     const custoTotal=rows.reduce((a,r)=>a+r._custo,0);
     const subtotalBase=rows.reduce((a,r)=>a+r._baseVenda,0);
     const totalLiquido=subtotal-descontoRs;`,
@@ -1019,6 +1020,70 @@ template = replaceOnce(
   `goEditor:()=>this.setState({view:'editor'}), goMateriais:()=>this.setState({view:'materiais'}),`,
   `goEditor:()=>this.setState({view:'editor'}), atualizarPagina:()=>{this.saveDraftNow();window.location.reload();}, goMateriais:()=>this.setState({view:'materiais'}),`,
   'quote refresh action',
+);
+
+template = replaceOnce(
+  template,
+  `<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:#b3ada2;">Itens</span><span style="font-family:'IBM Plex Mono';">{{ itemCountStr }}</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:#b3ada2;">Peso total</span>`,
+  `<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:#b3ada2;">Itens</span><span style="font-family:'IBM Plex Mono';">{{ itemCountStr }}</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:#b3ada2;">Quantidade total</span><span style="font-family:'IBM Plex Mono';font-weight:600;">{{ quantidadeTotalStr }}</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:#b3ada2;">Peso total</span>`,
+  'total material quantity summary',
+);
+
+template = replaceOnce(
+  template,
+  `    const pesoTotal=rows.reduce((a,r)=>a+r._peso,0);
+    const custoTotal=rows.reduce((a,r)=>a+r._custo,0);`,
+  `    const pesoTotal=rows.reduce((a,r)=>a+r._peso,0);
+    const quantidadeTotal=s.itens.reduce((a,it)=>a+this.num(it.qtd),0);
+    const custoTotal=rows.reduce((a,r)=>a+r._custo,0);`,
+  'total material quantity calculation',
+);
+
+template = replaceOnce(
+  template,
+  `pesoStr:this.kg(pesoTotal), itemCountStr:String(rows.length),`,
+  `pesoStr:this.kg(pesoTotal), itemCountStr:String(rows.length), quantidadeTotalStr:quantidadeTotal.toLocaleString('pt-BR',{maximumFractionDigits:3}),`,
+  'formatted total material quantity',
+);
+
+template = replaceOnce(
+  template,
+  `<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:#b3ada2;">Itens</span><span style="font-family:'IBM Plex Mono';">{{ itemCountStr }}</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:#b3ada2;">Quantidade total</span><span style="font-family:'IBM Plex Mono';font-weight:600;">{{ quantidadeTotalStr }}</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:#b3ada2;">Peso total</span><span style="font-family:'IBM Plex Mono';">{{ pesoStr }}</span></div>`,
+  `<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:#b3ada2;">Itens</span><span style="font-family:'IBM Plex Mono';">{{ itemCountStr }}</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:#b3ada2;">Peso total</span><span style="font-family:'IBM Plex Mono';">{{ pesoStr }}</span></div>`,
+  'move total quantity below the item table',
+);
+
+template = replaceOnce(
+  template,
+  `          </sc-for>
+        </div>
+        </sc-if>
+        <sc-if value="{{ noItens }}"`,
+  `          </sc-for>
+          <div data-quantity-total="editor" class="data-grid" style="display:grid;grid-template-columns:44px 1fr 92px 130px 96px 130px 40px;align-items:center;padding:10px 14px;border-top:1px solid #d8d2c8;background:#faf8f4;">
+            <span style="grid-column:1 / 3;text-align:right;padding-right:14px;font-size:12px;font-weight:700;color:#6b655c;text-transform:uppercase;letter-spacing:.3px;">Quantidade total</span>
+            <span style="text-align:center;font-family:'IBM Plex Mono';font-size:14px;font-weight:700;color:var(--accent,#2f5d86);">{{ quantidadeTotalStr }}</span>
+          </div>
+        </div>
+        </sc-if>
+        <sc-if value="{{ noItens }}"`,
+  'quantity total under the quantity column',
+);
+
+template = replaceOnce(
+  template,
+  `<div style="width:300px;display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:#8a8377;"><span>Peso total</span><span style="font-family:'IBM Plex Mono';">{{ pesoStr }}</span></div>`,
+  `<div style="width:300px;display:flex;flex-direction:column;gap:8px;">
+          <div data-quantity-total="print" style="display:flex;justify-content:space-between;font-size:12px;color:#6b655c;"><span>Quantidade total</span><span style="font-family:'IBM Plex Mono';font-weight:700;">{{ quantidadeTotalStr }}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:#8a8377;"><span>Peso total</span><span style="font-family:'IBM Plex Mono';">{{ pesoStr }}</span></div>`,
+  'quantity total in printed quote',
 );
 
 bundle = bundle.replace(

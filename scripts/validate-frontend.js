@@ -57,6 +57,11 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     "descontoModoStr",
     'aria-label="Atualizar página"',
     'atualizarPagina:()=>{this.saveDraftNow();window.location.reload();}',
+    '>Quantidade total</span>',
+    'const quantidadeTotal=s.itens.reduce((a,it)=>a+this.num(it.qtd),0);',
+    "quantidadeTotalStr:quantidadeTotal.toLocaleString('pt-BR',{maximumFractionDigits:3})",
+    'data-quantity-total="editor"',
+    'data-quantity-total="print"',
   ];
   for (const marker of requiredTemplateMarkers) {
     if (!template.includes(marker)) throw new Error(`Frontend marker is missing: ${marker}`);
