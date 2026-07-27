@@ -311,6 +311,27 @@ template = replaceOnce(
   'photo adjustment bindings',
 );
 
+template = replaceOnce(
+  template,
+  'width:60px;height:60px;border-radius:50%;overflow:hidden;background:{{ u.avatarBg }};',
+  'width:76px;height:76px;border-radius:50%;overflow:hidden;background:{{ u.avatarBg }};',
+  'larger profile selection photo',
+);
+
+template = replaceOnce(
+  template,
+  'width:30px;height:30px;border-radius:50%;overflow:hidden;background:var(--accent,#2f5d86);',
+  'width:38px;height:38px;border-radius:50%;overflow:hidden;background:var(--accent,#2f5d86);',
+  'larger toolbar photo',
+);
+
+template = replaceOnce(
+  template,
+  'width:72px;height:72px;flex:none;border-radius:50%;overflow:hidden;background:linear-gradient(140deg,var(--accent,#2f5d86),#24486a);',
+  'width:96px;height:96px;flex:none;border-radius:50%;overflow:hidden;background:linear-gradient(140deg,var(--accent,#2f5d86),#24486a);',
+  'larger profile photo preview',
+);
+
 const oldSync = `  async pullFromServer(){
     try{
       const r=await fetch(this.apiBase()+'/store',{cache:'no-store'});
