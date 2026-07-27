@@ -188,6 +188,11 @@ function createApplication(options = {}) {
   if (!fs.existsSync(publicDir) || !fs.statSync(publicDir).isDirectory()) {
     throw new Error(`Public directory does not exist: ${publicDir}`);
   }
+  const indexFile = path.join(publicDir, 'index.html');
+  const appVersion = crypto.createHash('sha256')
+    .update(fs.readFileSync(indexFile))
+    .digest('hex')
+    .slice(0, 16);
 
   let store = readJsonStrict(
     storeFile,
@@ -232,7 +237,10 @@ function createApplication(options = {}) {
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
     });
-    res.write(`event: ready\ndata: ${JSON.stringify({ revision: storeRevision })}\n\n`);
+    res.write(`event: ready\ndata: ${JSON.stringify({
+      revision: storeRevision,
+      version: appVersion,
+    })}\n\n`);
 
     const subscriber = { res, heartbeat: undefined };
     subscriber.heartbeat = setInterval(() => {
@@ -598,6 +606,13 @@ function createApplication(options = {}) {
       return req.method === 'HEAD'
         ? sendEmpty(res, status, { 'Cache-Control': 'no-store' })
         : sendJson(res, status, { ok: ready });
+    }
+
+    if (pathname === '/api/version') {
+      if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'method_not_allowed');
+      return req.method === 'HEAD'
+        ? sendEmpty(res, 200, { 'Cache-Control': 'no-store' })
+        : sendJson(res, 200, { version: appVersion });
     }
 
     if (pathname === '/api/gate/session' && req.method === 'GET') {

@@ -313,26 +313,32 @@ template = replaceOnce(
   'photo adjustment bindings',
 );
 
-template = replaceOnce(
-  template,
-  'width:60px;height:60px;border-radius:50%;overflow:hidden;background:{{ u.avatarBg }};',
-  'width:76px;height:76px;border-radius:50%;overflow:hidden;background:{{ u.avatarBg }};',
-  'larger profile selection photo',
-);
+if (!template.includes('width:96px;height:96px;border-radius:50%;overflow:hidden;background:{{ u.avatarBg }};')) {
+  template = replaceOnce(
+    template,
+    'width:60px;height:60px;border-radius:50%;overflow:hidden;background:{{ u.avatarBg }};',
+    'width:76px;height:76px;border-radius:50%;overflow:hidden;background:{{ u.avatarBg }};',
+    'larger profile selection photo',
+  );
+}
 
-template = replaceOnce(
-  template,
-  'width:30px;height:30px;border-radius:50%;overflow:hidden;background:var(--accent,#2f5d86);',
-  'width:38px;height:38px;border-radius:50%;overflow:hidden;background:var(--accent,#2f5d86);',
-  'larger toolbar photo',
-);
+if (!template.includes('width:48px;height:48px;border-radius:50%;overflow:hidden;background:var(--accent,#2f5d86);')) {
+  template = replaceOnce(
+    template,
+    'width:30px;height:30px;border-radius:50%;overflow:hidden;background:var(--accent,#2f5d86);',
+    'width:38px;height:38px;border-radius:50%;overflow:hidden;background:var(--accent,#2f5d86);',
+    'larger toolbar photo',
+  );
+}
 
-template = replaceOnce(
-  template,
-  'width:72px;height:72px;flex:none;border-radius:50%;overflow:hidden;background:linear-gradient(140deg,var(--accent,#2f5d86),#24486a);',
-  'width:96px;height:96px;flex:none;border-radius:50%;overflow:hidden;background:linear-gradient(140deg,var(--accent,#2f5d86),#24486a);',
-  'larger profile photo preview',
-);
+if (!template.includes('width:128px;height:128px;flex:none;border-radius:50%;overflow:hidden;background:linear-gradient(140deg,var(--accent,#2f5d86),#24486a);')) {
+  template = replaceOnce(
+    template,
+    'width:72px;height:72px;flex:none;border-radius:50%;overflow:hidden;background:linear-gradient(140deg,var(--accent,#2f5d86),#24486a);',
+    'width:96px;height:96px;flex:none;border-radius:50%;overflow:hidden;background:linear-gradient(140deg,var(--accent,#2f5d86),#24486a);',
+    'larger profile photo preview',
+  );
+}
 
 template = replaceOnce(
   template,
@@ -353,6 +359,70 @@ template = replaceOnce(
   'width:96px;height:96px;flex:none;border-radius:50%;overflow:hidden;background:linear-gradient(140deg,var(--accent,#2f5d86),#24486a);',
   'width:128px;height:128px;flex:none;border-radius:50%;overflow:hidden;background:linear-gradient(140deg,var(--accent,#2f5d86),#24486a);',
   'extra-large profile photo preview',
+);
+
+template = replaceOnce(
+  template,
+  `  componentWillUnmount(){
+    if(this._events)this._events.close();
+    Object.values(this._remoteTimers||{}).forEach(clearTimeout);
+    clearTimeout(this._t);
+  }`,
+  `  componentWillUnmount(){
+    if(this._events)this._events.close();
+    Object.values(this._remoteTimers||{}).forEach(clearTimeout);
+    clearInterval(this._versionTimer);
+    if(this._onWindowFocus)window.removeEventListener('focus',this._onWindowFocus);
+    clearTimeout(this._t);
+  }`,
+  'automatic update cleanup',
+);
+
+template = replaceOnce(
+  template,
+  `  apiBase(){ return (typeof window!=='undefined' && window.__TCCON_API) ? window.__TCCON_API : '/api'; }
+  bootstrapApp(){ this.pullFromServer().then(()=>{this.initData();this.startRealtime();}); }`,
+  `  apiBase(){ return (typeof window!=='undefined' && window.__TCCON_API) ? window.__TCCON_API : '/api'; }
+  async checkAppVersion(reloadOnChange=true){
+    try{
+      const r=await fetch(this.apiBase()+'/version',{cache:'no-store'});
+      if(!r.ok)return false;
+      const data=await r.json(),next=data&&data.version;
+      if(next&&this._appVersion&&next!==this._appVersion&&reloadOnChange){window.location.reload();return true;}
+      if(next)this._appVersion=next;
+    }catch(e){}
+    return false;
+  }
+  startVersionPolling(){
+    clearInterval(this._versionTimer);
+    this._versionTimer=setInterval(()=>this.checkAppVersion(true),15000);
+    this._onWindowFocus=()=>{this.checkAppVersion(true);this.pullFromServer().then(()=>this.refreshVisibleData());};
+    window.addEventListener('focus',this._onWindowFocus);
+  }
+  async bootstrapApp(){
+    await this.checkAppVersion(false);
+    await this.pullFromServer();
+    this.initData();
+    this.startRealtime();
+    this.startVersionPolling();
+  }`,
+  'automatic application updates',
+);
+
+template = replaceOnce(
+  template,
+  `    events.addEventListener('ready',()=>this.pullFromServer().then(()=>this.refreshVisibleData()));
+    events.addEventListener('change',e=>{try{const change=JSON.parse(e.data);if(change&&change.key)this.refreshKey(change.key);}catch(err){}});`,
+  `    events.addEventListener('ready',e=>{
+      try{
+        const ready=JSON.parse(e.data);
+        if(ready&&ready.version&&this._appVersion&&ready.version!==this._appVersion){window.location.reload();return;}
+        if(ready&&ready.version)this._appVersion=ready.version;
+      }catch(err){}
+      this.pullFromServer().then(()=>this.refreshVisibleData());
+    });
+    events.addEventListener('change',e=>{try{const change=JSON.parse(e.data);if(change&&change.key)this.refreshKey(change.key);}catch(err){}});`,
+  'version-aware realtime connection',
 );
 
 const oldSync = `  async pullFromServer(){

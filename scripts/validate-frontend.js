@@ -39,6 +39,9 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     'avatarStyle',
     'width:96px;height:96px;border-radius:50%',
     'width:128px;height:128px',
+    'startVersionPolling',
+    "this.apiBase()+'/version'",
+    'window.location.reload()',
   ];
   for (const marker of requiredTemplateMarkers) {
     if (!template.includes(marker)) throw new Error(`Frontend marker is missing: ${marker}`);

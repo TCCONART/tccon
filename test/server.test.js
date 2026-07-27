@@ -269,10 +269,24 @@ test('store changes are published to connected browsers in real time', async (t)
   assert.equal(written.status, 200);
   await changed;
   assert.match(eventText, /"key":"tccon_live"/);
+  assert.match(eventText, /"version":"[0-9a-f]{16}"/);
 
   const single = await request(server, '/api/store/tccon_live');
   assert.equal(single.status, 200);
   assert.deepEqual(single.json, { value: { updated: true } });
+});
+
+test('application version is exposed without caching for automatic updates', async (t) => {
+  const { server } = await fixture(t);
+
+  const version = await request(server, '/api/version');
+  assert.equal(version.status, 200);
+  assert.match(version.json.version, /^[0-9a-f]{16}$/);
+  assert.equal(version.headers['cache-control'], 'no-store');
+
+  const head = await request(server, '/api/version', { method: 'HEAD' });
+  assert.equal(head.status, 200);
+  assert.equal(head.headers['cache-control'], 'no-store');
 });
 
 test('invalid input and API routes fail safely', async (t) => {
