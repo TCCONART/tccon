@@ -128,8 +128,8 @@ template = replaceOnce(
 );
 template = replaceOnce(
   template,
-  '<div style="display:flex;align-items:center;gap:9px;">\n        <button sc-camel-on-click="{{ toggleMargem }}"',
-  '<div class="app-actions" style="display:flex;align-items:center;gap:9px;">\n        <button sc-camel-on-click="{{ toggleMargem }}"',
+  '<div style="display:flex;align-items:center;gap:9px;">',
+  '<div class="app-actions" style="display:flex;align-items:center;gap:9px;">',
   'application actions',
 );
 template = replaceOnce(
@@ -997,6 +997,28 @@ template = replaceOnce(
   `verImpressao:()=>this.setState({view:'print'}), voltar:()=>this.setState({view:'editor'}), imprimir:()=>window.print(),`,
   `verImpressao:()=>this.setState({view:'print'}), voltar:()=>this.setState({view:'editor'}), imprimir:()=>window.print(), salvarPdf:()=>this.savePdf(),`,
   'PDF save action',
+);
+
+template = replaceOnce(
+  template,
+  `<button sc-camel-on-click="{{ toggleMargem }}" style="padding:8px 13px;border:1px solid #4a463f;border-radius:7px;background:transparent;color:#e7e2d9;font-size:13px;font-weight:500;cursor:pointer;">{{ margemBtn }}</button>`,
+  `<button aria-label="Atualizar página" title="Atualizar página" sc-camel-on-click="{{ atualizarPagina }}" style="width:34px;height:34px;padding:7px;border:1px solid #4a463f;border-radius:7px;background:transparent;color:#e7e2d9;cursor:pointer;display:flex;align-items:center;justify-content:center;">
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 11a8 8 0 0 0-14.5-4.7L4 8"></path>
+            <path d="M4 3v5h5"></path>
+            <path d="M4 13a8 8 0 0 0 14.5 4.7L20 16"></path>
+            <path d="M20 21v-5h-5"></path>
+          </svg>
+        </button>
+        <button sc-camel-on-click="{{ toggleMargem }}" style="padding:8px 13px;border:1px solid #4a463f;border-radius:7px;background:transparent;color:#e7e2d9;font-size:13px;font-weight:500;cursor:pointer;">{{ margemBtn }}</button>`,
+  'quote refresh button',
+);
+
+template = replaceOnce(
+  template,
+  `goEditor:()=>this.setState({view:'editor'}), goMateriais:()=>this.setState({view:'materiais'}),`,
+  `goEditor:()=>this.setState({view:'editor'}), atualizarPagina:()=>{this.saveDraftNow();window.location.reload();}, goMateriais:()=>this.setState({view:'materiais'}),`,
+  'quote refresh action',
 );
 
 bundle = bundle.replace(

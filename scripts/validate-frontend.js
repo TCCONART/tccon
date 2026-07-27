@@ -55,6 +55,8 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     'placeholder="0 ou 10%"',
     "descontoTexto.includes('%')",
     "descontoModoStr",
+    'aria-label="Atualizar página"',
+    'atualizarPagina:()=>{this.saveDraftNow();window.location.reload();}',
   ];
   for (const marker of requiredTemplateMarkers) {
     if (!template.includes(marker)) throw new Error(`Frontend marker is missing: ${marker}`);
