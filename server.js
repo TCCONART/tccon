@@ -6,6 +6,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { createPasswordResetNotifier } = require('./mailer');
 
 const DEFAULT_MAX_BODY_BYTES = 20 * 1024 * 1024;
 const DEFAULT_MAX_STORE_BYTES = 50 * 1024 * 1024;
@@ -16,6 +17,8 @@ const AUTH_WINDOW_MS = 15 * 60 * 1000;
 const AUTH_MAX_FAILURES = 5;
 const GATE_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const MAX_GATE_SESSIONS = 1000;
+const RESET_REQUEST_WINDOW_MS = 10 * 60 * 1000;
+const MAX_RESET_REQUESTS = 3;
 const DEFAULT_GATE_USERNAME = 'tcconorc';
 const DEFAULT_GATE_PASSWORD_HASH = 'd7a6525cef4b8a918c57e6e7f08cb63095d10470d48bf392d1e1ca7e1e2baeba';
 
@@ -152,6 +155,9 @@ function createApplication(options = {}) {
   const gatePasswordHash = configuredGatePassword
     ? crypto.createHash('sha256').update(String(configuredGatePassword)).digest('hex')
     : DEFAULT_GATE_PASSWORD_HASH;
+  const passwordResetNotifier = options.passwordResetNotifier === undefined
+    ? createPasswordResetNotifier()
+    : options.passwordResetNotifier;
   const allowedHosts = new Set([
     '127.0.0.1',
     'localhost',
@@ -175,6 +181,7 @@ function createApplication(options = {}) {
   let auth = readJsonStrict(authFile, {}, isAuthStore, MAX_AUTH_BYTES);
   let shuttingDown = false;
   const authFailures = new Map();
+  const resetRequests = new Map();
   const gateSessions = new Map();
   const storeSubscribers = new Set();
   let storeRevision = 0;
@@ -364,6 +371,30 @@ function createApplication(options = {}) {
       : { count: 1, startedAt: Date.now() });
   }
 
+  function checkResetRateLimit(req) {
+    const key = crypto.createHash('sha256').update(clientAddress(req)).digest('hex');
+    const now = Date.now();
+    const recent = (resetRequests.get(key) || []).filter(
+      (requestedAt) => now - requestedAt < RESET_REQUEST_WINDOW_MS,
+    );
+    if (recent.length >= MAX_RESET_REQUESTS) {
+      const retryAfter = Math.max(
+        1,
+        Math.ceil((RESET_REQUEST_WINDOW_MS - (now - recent[0])) / 1000),
+      );
+      throw new HttpError(429, `retry_after_${retryAfter}`);
+    }
+    return { key, recent, now };
+  }
+
+  function recordResetRequest(tracker) {
+    if (!resetRequests.has(tracker.key) && resetRequests.size >= MAX_FAILURE_TRACKERS) {
+      const oldestKey = resetRequests.keys().next().value;
+      if (oldestKey !== undefined) resetRequests.delete(oldestKey);
+    }
+    resetRequests.set(tracker.key, [...tracker.recent, tracker.now]);
+  }
+
   function parseCookies(req) {
     const cookies = {};
     for (const part of String(req.headers.cookie || '').split(';')) {
@@ -542,6 +573,33 @@ function createApplication(options = {}) {
       return sendJson(res, 200, { ok: true }, {
         'Set-Cookie': sessionCookie(req, token, Math.floor(GATE_SESSION_TTL_MS / 1000)),
       });
+    }
+
+    if (pathname === '/api/gate/reset' && req.method === 'POST') {
+      requireSameSite(req);
+      const body = await readJsonBody(req);
+      const username = body && String(body.usuario || '').trim();
+      if (!username || username.length > 128 || /[\r\n]/.test(username)) {
+        throw new HttpError(400, 'invalid_username');
+      }
+      const tracker = checkResetRateLimit(req);
+      if (!passwordResetNotifier) throw new HttpError(503, 'reset_email_unavailable');
+      try {
+        await passwordResetNotifier({
+          username,
+          requestedAt: new Date().toISOString(),
+          address: clientAddress(req),
+          userAgent: req.headers['user-agent'],
+        });
+      } catch (error) {
+        logger('error', 'password_reset_notification_failed', {
+          errorCode: error.code || error.name || 'Error',
+        });
+        throw new HttpError(503, 'reset_email_unavailable');
+      }
+      recordResetRequest(tracker);
+      logger('info', 'password_reset_requested', { destination: 'financeiro' });
+      return sendJson(res, 202, { ok: true });
     }
 
     if (pathname === '/api/gate/logout' && req.method === 'POST') {

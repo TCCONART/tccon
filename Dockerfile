@@ -8,7 +8,7 @@ ENV NODE_ENV=production \
     DATA_DIR=/app/data \
     PUBLIC_DIR=/app/public
 
-COPY --chown=node:node package.json server.js ./
+COPY --chown=node:node package.json server.js mailer.js ./
 COPY --chown=node:node public ./public
 
 # A aplicação não instala pacotes em runtime. Remover npm/corepack reduz a
