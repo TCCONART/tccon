@@ -27,6 +27,9 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     'startRealtime',
     "new EventSource(this.apiBase()+'/events')",
     'refreshKey(k)',
+    'loginGate',
+    'showGate',
+    'Acesso ao sistema',
     'migrateLocalPasswords',
     'senhaAtual',
   ];

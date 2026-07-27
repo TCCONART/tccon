@@ -14,6 +14,10 @@ const MAX_AUTH_RECORDS = 1000;
 const MAX_FAILURE_TRACKERS = 10_000;
 const AUTH_WINDOW_MS = 15 * 60 * 1000;
 const AUTH_MAX_FAILURES = 5;
+const GATE_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+const MAX_GATE_SESSIONS = 1000;
+const DEFAULT_GATE_USERNAME = 'tcconorc';
+const DEFAULT_GATE_PASSWORD_HASH = 'd7a6525cef4b8a918c57e6e7f08cb63095d10470d48bf392d1e1ca7e1e2baeba';
 
 class HttpError extends Error {
   constructor(status, code) {
@@ -142,6 +146,12 @@ function createApplication(options = {}) {
   );
   const logger = options.logger || logJson;
   const domain = parseDomain(options.domain ?? process.env.TCCON_DOMAIN);
+  const gateEnabled = options.gateEnabled !== false;
+  const gateUsername = String(options.gateUsername || process.env.TCCON_GATE_USER || DEFAULT_GATE_USERNAME);
+  const configuredGatePassword = options.gatePassword || process.env.TCCON_GATE_PASSWORD;
+  const gatePasswordHash = configuredGatePassword
+    ? crypto.createHash('sha256').update(String(configuredGatePassword)).digest('hex')
+    : DEFAULT_GATE_PASSWORD_HASH;
   const allowedHosts = new Set([
     '127.0.0.1',
     'localhost',
@@ -165,6 +175,7 @@ function createApplication(options = {}) {
   let auth = readJsonStrict(authFile, {}, isAuthStore, MAX_AUTH_BYTES);
   let shuttingDown = false;
   const authFailures = new Map();
+  const gateSessions = new Map();
   const storeSubscribers = new Set();
   let storeRevision = 0;
 
@@ -353,6 +364,58 @@ function createApplication(options = {}) {
       : { count: 1, startedAt: Date.now() });
   }
 
+  function parseCookies(req) {
+    const cookies = {};
+    for (const part of String(req.headers.cookie || '').split(';')) {
+      const separator = part.indexOf('=');
+      if (separator < 1) continue;
+      cookies[part.slice(0, separator).trim()] = part.slice(separator + 1).trim();
+    }
+    return cookies;
+  }
+
+  function gateSession(req) {
+    if (!gateEnabled) return { authenticated: true };
+    const token = parseCookies(req).tccon_session;
+    if (!token || !/^[0-9a-f]{64}$/.test(token)) return null;
+    const session = gateSessions.get(token);
+    if (!session) return null;
+    if (session.expiresAt <= Date.now()) {
+      gateSessions.delete(token);
+      return null;
+    }
+    return { token, ...session };
+  }
+
+  function requireGateSession(req) {
+    if (!gateSession(req)) throw new HttpError(401, 'authentication_required');
+  }
+
+  function secureCookie(req) {
+    const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',', 1)[0].trim();
+    return forwardedProto === 'https' || Boolean(req.socket.encrypted);
+  }
+
+  function sessionCookie(req, token, maxAge) {
+    return [
+      `tccon_session=${token}`,
+      'Path=/',
+      'HttpOnly',
+      'SameSite=Strict',
+      `Max-Age=${maxAge}`,
+      ...(secureCookie(req) ? ['Secure'] : []),
+    ].join('; ');
+  }
+
+  function credentialsMatch(username, password) {
+    const usernameHash = crypto.createHash('sha256').update(String(username)).digest();
+    const expectedUsernameHash = crypto.createHash('sha256').update(gateUsername).digest();
+    const passwordHash = crypto.createHash('sha256').update(String(password)).digest();
+    const expectedPasswordHash = Buffer.from(gatePasswordHash, 'hex');
+    return crypto.timingSafeEqual(usernameHash, expectedUsernameHash) &&
+      crypto.timingSafeEqual(passwordHash, expectedPasswordHash);
+  }
+
   function requireSameSite(req) {
     if (String(req.headers['sec-fetch-site'] || '').toLowerCase() === 'cross-site') {
       throw new HttpError(403, 'cross_site_request_denied');
@@ -394,7 +457,8 @@ function createApplication(options = {}) {
     }
     if (decoded.includes('\0')) throw new HttpError(400, 'bad_path');
 
-    if (decoded === '/' || decoded === '') decoded = '/index.html';
+    if (gateEnabled && !gateSession(req)) decoded = '/login.html';
+    else if (decoded === '/' || decoded === '') decoded = '/index.html';
     const candidate = path.resolve(publicDir, `.${decoded.replaceAll('\\', '/')}`);
     const relative = path.relative(publicDir, candidate);
     if (relative.startsWith('..') || path.isAbsolute(relative)) {
@@ -419,7 +483,9 @@ function createApplication(options = {}) {
     const headers = {
       'Content-Type': mimeTypes[path.extname(file).toLowerCase()] || 'application/octet-stream',
       'Content-Length': data.length,
-      'Cache-Control': path.basename(file) === 'index.html' ? 'no-store' : 'public, max-age=3600',
+      'Cache-Control': ['index.html', 'login.html'].includes(path.basename(file))
+        ? 'no-store'
+        : 'public, max-age=3600',
     };
     if (req.method === 'HEAD') return sendEmpty(res, 200, headers);
     res.writeHead(200, headers);
@@ -452,6 +518,42 @@ function createApplication(options = {}) {
         ? sendEmpty(res, status, { 'Cache-Control': 'no-store' })
         : sendJson(res, status, { ok: ready });
     }
+
+    if (pathname === '/api/gate/session' && req.method === 'GET') {
+      return sendJson(res, 200, { authenticated: Boolean(gateSession(req)) });
+    }
+
+    if (pathname === '/api/gate/login' && req.method === 'POST') {
+      requireSameSite(req);
+      const body = await readJsonBody(req);
+      const username = body && String(body.usuario || '');
+      const password = body && String(body.senha || '');
+      if (username.length > 128 || password.length > 256) throw new HttpError(400, 'invalid_credentials');
+      const failureTracker = checkAuthRateLimit(req, '__system_gate__');
+      const valid = credentialsMatch(username, password);
+      recordAuthResult(failureTracker, valid);
+      if (!valid) throw new HttpError(401, 'invalid_credentials');
+      if (gateSessions.size >= MAX_GATE_SESSIONS) {
+        const oldestToken = gateSessions.keys().next().value;
+        if (oldestToken) gateSessions.delete(oldestToken);
+      }
+      const token = crypto.randomBytes(32).toString('hex');
+      gateSessions.set(token, { expiresAt: Date.now() + GATE_SESSION_TTL_MS });
+      return sendJson(res, 200, { ok: true }, {
+        'Set-Cookie': sessionCookie(req, token, Math.floor(GATE_SESSION_TTL_MS / 1000)),
+      });
+    }
+
+    if (pathname === '/api/gate/logout' && req.method === 'POST') {
+      requireSameSite(req);
+      const session = gateSession(req);
+      if (session && session.token) gateSessions.delete(session.token);
+      return sendJson(res, 200, { ok: true }, {
+        'Set-Cookie': sessionCookie(req, '', 0),
+      });
+    }
+
+    if (pathname.startsWith('/api/')) requireGateSession(req);
 
     if (pathname === '/api/store' && req.method === 'GET') {
       return sendJson(res, 200, store);

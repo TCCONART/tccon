@@ -50,6 +50,7 @@ async function fixture(t, options = {}) {
     dataDir,
     publicDir: PUBLIC_DIR,
     logger: () => {},
+    gateEnabled: false,
     ...options,
   });
   await new Promise((resolve) => application.server.listen(0, '127.0.0.1', resolve));
@@ -59,6 +60,49 @@ async function fixture(t, options = {}) {
   });
   return application;
 }
+
+test('system access requires a valid gate login and protected session cookie', async (t) => {
+  const { server } = await fixture(t, {
+    gateEnabled: true,
+    gateUsername: 'system-user',
+    gatePassword: 'system-password',
+  });
+
+  const denied = await request(server, '/api/store');
+  assert.equal(denied.status, 401);
+  assert.equal(denied.json.error, 'authentication_required');
+
+  const initial = await request(server, '/api/gate/session');
+  assert.deepEqual(initial.json, { authenticated: false });
+  const lockedPage = await request(server, '/');
+  assert.match(lockedPage.text, /Acesso ao sistema/);
+  assert.doesNotMatch(lockedPage.text, /Quem est.+ atendendo/);
+
+  const rejected = await request(server, '/api/gate/login', {
+    method: 'POST',
+    body: { usuario: 'system-user', senha: 'wrong-password' },
+  });
+  assert.equal(rejected.status, 401);
+
+  const login = await request(server, '/api/gate/login', {
+    method: 'POST',
+    headers: { 'X-Forwarded-Proto': 'https' },
+    body: { usuario: 'system-user', senha: 'system-password' },
+  });
+  assert.equal(login.status, 200);
+  assert.equal(login.json.ok, true);
+  assert.match(login.headers['set-cookie'][0], /HttpOnly/);
+  assert.match(login.headers['set-cookie'][0], /SameSite=Strict/);
+  assert.match(login.headers['set-cookie'][0], /Secure/);
+  const cookie = login.headers['set-cookie'][0].split(';', 1)[0];
+
+  const allowed = await request(server, '/api/store', { headers: { Cookie: cookie } });
+  assert.equal(allowed.status, 200);
+  const active = await request(server, '/api/gate/session', { headers: { Cookie: cookie } });
+  assert.deepEqual(active.json, { authenticated: true });
+  const unlockedPage = await request(server, '/', { headers: { Cookie: cookie } });
+  assert.match(unlockedPage.text, /Quem est.+ atendendo/);
+});
 
 test('health, readiness and static responses are hardened', async (t) => {
   const { server } = await fixture(t);

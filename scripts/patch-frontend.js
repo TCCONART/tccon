@@ -274,7 +274,7 @@ const newSync = `  pendingGet(){ try{return JSON.parse(localStorage.getItem('__t
   }`;
 if (template.includes(oldSync)) {
   template = replaceOnce(template, oldSync, newSync, 'durable synchronization queue');
-} else {
+} else if (!template.includes("if(!failed && Object.keys(this.pendingGet()).length)setTimeout(()=>this.flushPending(),0);")) {
   const priorSync = newSync.replace(
     "      if(!failed && Object.keys(this.pendingGet()).length)setTimeout(()=>this.flushPending(),0);\n",
     '',
@@ -352,13 +352,14 @@ template = replaceOnce(
   'profile keyboard handler',
 );
 
-template = replaceOnce(
-  template,
-  `  componentDidMount(){
+if (!template.includes('    this.checkGate();')) {
+  template = replaceOnce(
+    template,
+    `  componentDidMount(){
     this.setState({data:this.today(), numero:this.genNumero(), markup:this.props.markupPadrao ?? 2, showMargem:this.props.mostrarMargem ?? false});
     this.pullFromServer().then(()=>this.initData());
   }`,
-  `  componentDidMount(){
+    `  componentDidMount(){
     this.setState({data:this.today(), numero:this.genNumero(), markup:this.props.markupPadrao ?? 2, showMargem:this.props.mostrarMargem ?? false});
     this.pullFromServer().then(()=>{this.initData();this.startRealtime();});
   }
@@ -367,8 +368,9 @@ template = replaceOnce(
     Object.values(this._remoteTimers||{}).forEach(clearTimeout);
     clearTimeout(this._t);
   }`,
-  'real-time lifecycle',
-);
+    'real-time lifecycle',
+  );
+}
 
 template = replaceOnce(
   template,
@@ -414,6 +416,111 @@ template = replaceOnce(
   pushKey(k,val){
     if(typeof k!=='string' || k.indexOf('tccon_')!==0) return Promise.resolve(false);`,
   'real-time store updates',
+);
+
+const gateMarkup = `
+  <!-- ============ ACESSO INICIAL AO SISTEMA ============ -->
+  <sc-if value="{{ showGate }}" hint-placeholder-val="{{ false }}">
+  <div class="login-grid" style="flex:1;min-height:100vh;display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr);">
+    <div class="login-brand" style="position:relative;overflow:hidden;background:linear-gradient(150deg,#26241f 0%,#2f2c26 55%,#3a352d 100%);color:#f3efe8;padding:56px 52px;display:flex;flex-direction:column;justify-content:space-between;">
+      <div style="position:absolute;right:-90px;top:-70px;width:340px;height:340px;border-radius:50%;background:var(--accent,#2f5d86);opacity:.18;filter:blur(8px);"></div>
+      <div style="position:relative;width:76px;height:76px;border-radius:18px;overflow:hidden;box-shadow:0 8px 22px rgba(0,0,0,.28);">
+        <img src="07bd7d41-cb85-48e0-8a23-c759c0441836" alt="TCCON" style="width:100%;height:100%;object-fit:cover;display:block;">
+      </div>
+      <div style="position:relative;">
+        <div style="font-family:'Barlow Semi Condensed';font-weight:700;font-size:40px;line-height:1.05;letter-spacing:.3px;">Sistema de<br>Orçamentos</div>
+        <div style="font-size:15px;color:#b3ada2;margin-top:16px;max-width:340px;line-height:1.6;">Acesso seguro ao ambiente comercial TCCON.</div>
+      </div>
+      <div style="position:relative;font-size:11.5px;color:#7a746a;">TCCON Artefatos de Concreto</div>
+    </div>
+    <div class="login-profiles" style="background:radial-gradient(circle at 70% 15%, #f3eee5, #e6e0d5);display:flex;align-items:center;justify-content:center;padding:48px 44px;">
+      <div style="width:100%;max-width:420px;background:#fff;border:1px solid #ded7cb;border-radius:18px;padding:34px;box-shadow:0 18px 45px rgba(40,35,28,.1);">
+        <div style="font-family:'Barlow Semi Condensed';font-weight:700;font-size:27px;">Acesso ao sistema</div>
+        <div style="font-size:13.5px;color:#8a8377;margin:5px 0 24px;line-height:1.5;">Informe suas credenciais para visualizar os usuários dos orçamentos.</div>
+        <label for="gate-user" style="display:block;font-size:12px;font-weight:700;color:#686157;margin-bottom:6px;">USUÁRIO</label>
+        <input id="gate-user" autocomplete="username" value="{{ gateUser }}" sc-camel-on-change="{{ onGateUser }}" sc-camel-on-key-down="{{ onGateKey }}" placeholder="Digite seu usuário" style="width:100%;height:44px;border:1px solid #d8d1c5;border-radius:9px;padding:0 12px;font-size:14px;background:#fff;margin-bottom:16px;">
+        <label for="gate-password" style="display:block;font-size:12px;font-weight:700;color:#686157;margin-bottom:6px;">SENHA</label>
+        <input id="gate-password" type="password" autocomplete="current-password" value="{{ gatePassword }}" sc-camel-on-change="{{ onGatePassword }}" sc-camel-on-key-down="{{ onGateKey }}" placeholder="Digite sua senha" style="width:100%;height:44px;border:1px solid #d8d1c5;border-radius:9px;padding:0 12px;font-size:14px;background:#fff;">
+        <sc-if value="{{ hasGateError }}" hint-placeholder-val="{{ false }}">
+          <div role="alert" style="margin-top:12px;padding:10px 12px;border-radius:8px;background:#f9e9e7;color:#9a3f35;font-size:13px;">{{ gateError }}</div>
+        </sc-if>
+        <button sc-camel-on-click="{{ loginGate }}" style="width:100%;height:46px;margin-top:20px;border:none;border-radius:9px;background:var(--accent,#2f5d86);color:#fff;font-size:14px;font-weight:700;cursor:pointer;">{{ gateButton }}</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+`;
+template = replaceOnce(
+  template,
+  '  <!-- ============ LOGIN / SELEÇÃO DE PERFIL ============ -->',
+  `${gateMarkup}\n  <!-- ============ LOGIN / SELEÇÃO DE PERFIL ============ -->`,
+  'system access screen',
+);
+
+template = replaceOnce(
+  template,
+  `  state = {
+    loaded:false, products:[], clientes:[], orcamentos:[],`,
+  `  state = {
+    gateChecked:false, gateAuthenticated:false, gateUser:'', gatePassword:'', gateError:'', gateBusy:false,
+    loaded:false, products:[], clientes:[], orcamentos:[],`,
+  'system access state',
+);
+
+template = replaceOnce(
+  template,
+  `  componentDidMount(){
+    this.setState({data:this.today(), numero:this.genNumero(), markup:this.props.markupPadrao ?? 2, showMargem:this.props.mostrarMargem ?? false});
+    this.pullFromServer().then(()=>{this.initData();this.startRealtime();});
+  }`,
+  `  componentDidMount(){
+    this.setState({data:this.today(), numero:this.genNumero(), markup:this.props.markupPadrao ?? 2, showMargem:this.props.mostrarMargem ?? false});
+    this.checkGate();
+  }`,
+  'system access startup',
+);
+
+template = replaceOnce(
+  template,
+  `  apiBase(){ return (typeof window!=='undefined' && window.__TCCON_API) ? window.__TCCON_API : '/api'; }`,
+  `  apiBase(){ return (typeof window!=='undefined' && window.__TCCON_API) ? window.__TCCON_API : '/api'; }
+  bootstrapApp(){ this.pullFromServer().then(()=>{this.initData();this.startRealtime();}); }
+  async checkGate(){
+    try{
+      const r=await fetch(this.apiBase()+'/gate/session',{cache:'no-store'});
+      const data=await r.json();
+      if(data&&data.authenticated){this.setState({gateChecked:true,gateAuthenticated:true});this.bootstrapApp();return;}
+    }catch(e){}
+    this.setState({gateChecked:true,gateAuthenticated:false,loaded:true});
+  }
+  async loginGate(){
+    if(this.state.gateBusy)return;
+    const usuario=this.state.gateUser.trim(),senha=this.state.gatePassword;
+    if(!usuario||!senha){this.setState({gateError:'Informe o usuário e a senha.'});return;}
+    this.setState({gateBusy:true,gateError:''});
+    try{
+      const r=await fetch(this.apiBase()+'/gate/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({usuario,senha})});
+      if(!r.ok){this.setState({gateBusy:false,gatePassword:'',gateError:r.status===429?'Muitas tentativas. Aguarde alguns minutos.':'Usuário ou senha incorretos.'});return;}
+      this.setState({gateBusy:false,gatePassword:'',gateAuthenticated:true,loaded:false});
+      this.bootstrapApp();
+    }catch(e){this.setState({gateBusy:false,gateError:'Não foi possível conectar ao servidor.'});}
+  }`,
+  'system access behavior',
+);
+
+template = replaceOnce(
+  template,
+  `      loaded:s.loaded,
+      isLogin:!s.currentUserId, isApp:!!s.currentUserId&&s.view!=='print', isPrint:s.view==='print',`,
+  `      loaded:s.loaded,
+      showGate:s.gateChecked&&!s.gateAuthenticated,
+      gateUser:s.gateUser, gatePassword:s.gatePassword, gateError:s.gateError, hasGateError:s.gateError!=='',
+      gateButton:s.gateBusy?'Entrando...':'Entrar', loginGate:()=>this.loginGate(),
+      onGateUser:e=>this.setState({gateUser:e.target.value,gateError:''}),
+      onGatePassword:e=>this.setState({gatePassword:e.target.value,gateError:''}),
+      onGateKey:e=>{if(e.key==='Enter'){e.preventDefault();this.loginGate();}},
+      isLogin:s.gateAuthenticated&&!s.currentUserId, isApp:s.gateAuthenticated&&!!s.currentUserId&&s.view!=='print', isPrint:s.gateAuthenticated&&s.view==='print',`,
+  'system access render values',
 );
 
 bundle = bundle.replace(
