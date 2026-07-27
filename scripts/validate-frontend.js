@@ -34,6 +34,9 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     'Acesso ao sistema',
     'migrateLocalPasswords',
     'senhaAtual',
+    'Ajustar foto no ícone',
+    'onMeFotoZoom',
+    'avatarStyle',
   ];
   for (const marker of requiredTemplateMarkers) {
     if (!template.includes(marker)) throw new Error(`Frontend marker is missing: ${marker}`);

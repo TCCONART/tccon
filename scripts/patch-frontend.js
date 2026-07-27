@@ -213,6 +213,104 @@ template = replaceOnce(
   'toast live region',
 );
 
+template = replaceOnce(
+  template,
+  '<div style="width:30px;height:30px;border-radius:50%;background:var(--accent,#2f5d86);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;font-family:\'Barlow Semi Condensed\';">{{ meInitials }}</div>',
+  '<div style="width:30px;height:30px;border-radius:50%;overflow:hidden;background:var(--accent,#2f5d86);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;font-family:\'Barlow Semi Condensed\';">{{ meHeaderFotoImg }}<sc-if value="{{ meNoFoto }}" hint-placeholder-val="{{ true }}"><span>{{ meInitials }}</span></sc-if></div>',
+  'adjusted photo in toolbar',
+);
+
+template = replaceOnce(
+  template,
+  `            <span style="font-size:11.5px;color:#a29a8d;">A foto aparece na tela inicial de seleção de perfil.</span>
+          </div>
+        </div>
+        <div class="responsive-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">`,
+  `            <span style="font-size:11.5px;color:#a29a8d;">A foto aparece nos ícones do perfil e na barra superior.</span>
+          </div>
+        </div>
+        <sc-if value="{{ meHasFoto }}" hint-placeholder-val="{{ false }}">
+          <div style="margin:-4px 0 18px;padding:14px 16px;border:1px solid #ebe6dd;border-radius:10px;background:#fbfaf7;">
+            <div style="font-size:12px;font-weight:700;color:#5f584f;margin-bottom:12px;">Ajustar foto no ícone</div>
+            <div class="responsive-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+              <label style="display:block;"><span style="font-size:11px;font-weight:600;color:#8a8377;">Zoom</span><input type="range" min="1" max="2.5" step="0.05" value="{{ meFotoZoom }}" sc-camel-on-input="{{ onMeFotoZoom }}" style="width:100%;margin-top:7px;"></label>
+              <label style="display:block;"><span style="font-size:11px;font-weight:600;color:#8a8377;">Horizontal</span><input type="range" min="0" max="100" step="1" value="{{ meFotoX }}" sc-camel-on-input="{{ onMeFotoX }}" style="width:100%;margin-top:7px;"></label>
+              <label style="display:block;"><span style="font-size:11px;font-weight:600;color:#8a8377;">Vertical</span><input type="range" min="0" max="100" step="1" value="{{ meFotoY }}" sc-camel-on-input="{{ onMeFotoY }}" style="width:100%;margin-top:7px;"></label>
+            </div>
+            <button sc-camel-on-click="{{ onMeFotoReset }}" style="margin-top:10px;padding:0;border:none;background:transparent;color:var(--accent,#2f5d86);font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;">Centralizar foto</button>
+          </div>
+        </sc-if>
+        <div class="responsive-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">`,
+  'photo adjustment controls',
+);
+
+template = replaceOnce(
+  template,
+  `  setPhoto(file){
+    if(!file) return;
+    const reader=new FileReader();
+    reader.onload=()=>{ const img=new Image(); img.onload=()=>{ const s=Math.min(img.width,img.height),c=document.createElement('canvas');c.width=c.height=220;const ctx=c.getContext('2d');ctx.drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,220,220);this.setUser(u=>({...u,foto:c.toDataURL('image/jpeg',0.82)})); }; img.src=reader.result; };
+    reader.readAsDataURL(file);
+  }`,
+  `  setPhoto(file){
+    if(!file) return;
+    const reader=new FileReader();
+    reader.onload=()=>{ const img=new Image(); img.onload=()=>{
+      const scale=Math.min(1,900/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');
+      c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));
+      const ctx=c.getContext('2d');ctx.drawImage(img,0,0,c.width,c.height);
+      this.setUser(u=>({...u,foto:c.toDataURL('image/jpeg',0.84),fotoZoom:1,fotoX:50,fotoY:50}));
+    }; img.src=reader.result; };
+    reader.readAsDataURL(file);
+  }`,
+  'preserve photo for avatar adjustment',
+);
+
+template = replaceOnce(
+  template,
+  `    const empresa=me.empresa||this.EMPRESA_PADRAO();
+
+    const dpct=`,
+  `    const empresa=me.empresa||this.EMPRESA_PADRAO();
+    const avatarStyle=user=>{
+      const numberOr=(value,fallback)=>Number.isFinite(Number(value))?Number(value):fallback;
+      const x=Math.max(0,Math.min(100,numberOr(user.fotoX,50)));
+      const y=Math.max(0,Math.min(100,numberOr(user.fotoY,50)));
+      const zoom=Math.max(1,Math.min(2.5,numberOr(user.fotoZoom,1)));
+      return {width:'100%',height:'100%',objectFit:'cover',objectPosition:x+'% '+y+'%',transform:'scale('+zoom+')',transformOrigin:x+'% '+y+'%'};
+    };
+
+    const dpct=`,
+  'avatar adjustment style',
+);
+
+template = replaceOnce(
+  template,
+  `avatar:u.foto?React.createElement('img',{src:u.foto,alt:'',style:{width:'100%',height:'100%',objectFit:'cover'}}):null`,
+  `avatar:u.foto?React.createElement('img',{src:u.foto,alt:'',style:avatarStyle(u)}):null`,
+  'adjust profile selection photo',
+);
+
+template = replaceOnce(
+  template,
+  `      meFoto:me.foto||'', meHasFoto:!!me.foto, meNoFoto:!me.foto,
+      meFotoImg:me.foto?React.createElement('img',{src:me.foto,alt:'',style:{width:'100%',height:'100%',objectFit:'cover'}}):null,
+      onMeFoto:e=>this.setPhoto(e.target.files&&e.target.files[0]),
+      onMeFotoRemove:()=>this.setUser(u=>({...u,foto:''})),`,
+  `      meFoto:me.foto||'', meHasFoto:!!me.foto, meNoFoto:!me.foto,
+      meFotoImg:me.foto?React.createElement('img',{src:me.foto,alt:'',style:avatarStyle(me)}):null,
+      meHeaderFotoImg:me.foto?React.createElement('img',{src:me.foto,alt:'',style:avatarStyle(me)}):null,
+      meFotoZoom:me.fotoZoom||1, meFotoX:me.fotoX??50, meFotoY:me.fotoY??50,
+      onMeFoto:e=>this.setPhoto(e.target.files&&e.target.files[0]),
+      onMeFotoZoom:e=>this.setUser(u=>({...u,fotoZoom:Number(e.target.value)})),
+      onMeFotoX:e=>this.setUser(u=>({...u,fotoX:Number(e.target.value)})),
+      onMeFotoY:e=>this.setUser(u=>({...u,fotoY:Number(e.target.value)})),
+      onMeFotoReset:()=>this.setUser(u=>({...u,fotoZoom:1,fotoX:50,fotoY:50})),
+      onMeFotoRemove:()=>this.setUser(u=>({...u,foto:'',fotoZoom:1,fotoX:50,fotoY:50})),`,
+  'photo adjustment bindings',
+);
+
 const oldSync = `  async pullFromServer(){
     try{
       const r=await fetch(this.apiBase()+'/store',{cache:'no-store'});
