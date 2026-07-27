@@ -233,10 +233,7 @@ function createPasswordResetNotifier(environment = process.env) {
   }
 
   const from = validateEmail(environment.TCCON_SMTP_FROM || username, 'TCCON_SMTP_FROM');
-  const to = validateEmail(
-    environment.TCCON_PASSWORD_RESET_TO || 'financeiro@tccon.com.br',
-    'TCCON_PASSWORD_RESET_TO',
-  );
+  const to = 'financeiro@tccon.com.br';
   const helloName = String(environment.TCCON_SMTP_HELO || os.hostname())
     .replace(/[^A-Za-z0-9.-]/g, '-')
     .slice(0, 253) || 'localhost';
@@ -251,8 +248,7 @@ function createPasswordResetNotifier(environment = process.env) {
     helloName,
   };
 
-  return async ({ username: requestedUsername, requestedAt, address, userAgent }) => {
-    const safeUsername = String(requestedUsername).replace(/[\r\n]/g, ' ').slice(0, 128);
+  return async ({ resetUrl, requestedAt, address, userAgent }) => {
     const safeAddress = String(address || 'não identificado').replace(/[\r\n]/g, ' ').slice(0, 128);
     const safeAgent = String(userAgent || 'não identificado').replace(/[\r\n]/g, ' ').slice(0, 300);
     await sendSmtpMessage(config, {
@@ -261,13 +257,15 @@ function createPasswordResetNotifier(environment = process.env) {
       body: [
         'Foi solicitada uma redefinição de senha no Sistema de Orçamentos TCCON.',
         '',
-        `Usuário informado: ${safeUsername}`,
         `Data e hora: ${requestedAt}`,
         `Origem: ${safeAddress}`,
         `Navegador: ${safeAgent}`,
         '',
-        'Nenhuma senha foi alterada automaticamente.',
-        'Confirme a identidade do solicitante antes de fornecer ou trocar credenciais.',
+        'Use o link temporário abaixo para definir uma nova senha:',
+        '',
+        resetUrl,
+        '',
+        'O link expira em 30 minutos e só pode ser utilizado uma vez.',
       ].join('\n'),
     });
   };

@@ -7,6 +7,7 @@ const zlib = require('node:zlib');
 function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', 'index.html')) {
   const bundle = fs.readFileSync(bundlePath, 'utf8');
   const login = fs.readFileSync(path.resolve(path.dirname(bundlePath), 'login.html'), 'utf8');
+  const resetPage = fs.readFileSync(path.resolve(path.dirname(bundlePath), 'reset-password.html'), 'utf8');
   const templateMatch = bundle.match(
     /<script type="__bundler\/template">\s*([\s\S]*?)\s*<\/script>/,
   );
@@ -39,6 +40,9 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
   }
   for (const marker of ['Esqueci minha senha', 'toggle-senha', '/api/gate/reset']) {
     if (!login.includes(marker)) throw new Error(`Login marker is missing: ${marker}`);
+  }
+  for (const marker of ['Definir nova senha', '/api/gate/reset/complete', 'autocomplete="new-password"']) {
+    if (!resetPage.includes(marker)) throw new Error(`Reset marker is missing: ${marker}`);
   }
   if (template.includes('u.senha=senha')) {
     throw new Error('The frontend still stores new passwords in plaintext');

@@ -110,44 +110,61 @@ test('password reset requests notify finance without exposing or changing passwo
     gateEnabled: true,
     gateUsername: 'system-user',
     gatePassword: 'system-password',
+    publicUrl: 'https://orcamentos.tccon.test',
     passwordResetNotifier: async (requestDetails) => notifications.push(requestDetails),
   });
 
   const requested = await request(server, '/api/gate/reset', {
     method: 'POST',
     headers: { 'User-Agent': 'TCCON test browser' },
-    body: { usuario: 'system-user' },
+    body: { email: 'financeiro@tccon.com.br' },
   });
   assert.equal(requested.status, 202);
   assert.deepEqual(requested.json, { ok: true });
   assert.equal(notifications.length, 1);
-  assert.equal(notifications[0].username, 'system-user');
+  assert.equal(notifications[0].email, 'financeiro@tccon.com.br');
   assert.equal(notifications[0].userAgent, 'TCCON test browser');
   assert.match(notifications[0].requestedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.match(notifications[0].resetUrl, /^https:\/\/orcamentos\.tccon\.test\/redefinir-senha\?token=[0-9a-f]{64}$/);
+  const token = new URL(notifications[0].resetUrl).searchParams.get('token');
 
-  const stillValid = await request(server, '/api/gate/login', {
+  const resetPage = await request(server, `/redefinir-senha?token=${token}`);
+  assert.match(resetPage.text, /Definir nova senha/);
+  const completed = await request(server, '/api/gate/reset/complete', {
     method: 'POST',
-    body: { usuario: 'system-user', senha: 'system-password' },
+    body: { token, senha: 'replacement-password' },
   });
-  assert.equal(stillValid.status, 200);
+  assert.equal(completed.status, 200);
+  const oldPassword = await request(server, '/api/gate/login', {
+    method: 'POST', body: { usuario: 'system-user', senha: 'system-password' },
+  });
+  assert.equal(oldPassword.status, 401);
+  const newPassword = await request(server, '/api/gate/login', {
+    method: 'POST', body: { usuario: 'system-user', senha: 'replacement-password' },
+  });
+  assert.equal(newPassword.status, 200);
+  const reused = await request(server, '/api/gate/reset/complete', {
+    method: 'POST', body: { token, senha: 'another-password' },
+  });
+  assert.equal(reused.status, 400);
 
   const crossSite = await request(server, '/api/gate/reset', {
     method: 'POST',
     headers: { 'Sec-Fetch-Site': 'cross-site' },
-    body: { usuario: 'system-user' },
+    body: { email: 'financeiro@tccon.com.br' },
   });
   assert.equal(crossSite.status, 403);
 
   for (let index = 0; index < 2; index += 1) {
     const additional = await request(server, '/api/gate/reset', {
       method: 'POST',
-      body: { usuario: 'system-user' },
+      body: { email: 'financeiro@tccon.com.br' },
     });
     assert.equal(additional.status, 202);
   }
   const limited = await request(server, '/api/gate/reset', {
     method: 'POST',
-    body: { usuario: 'system-user' },
+    body: { email: 'financeiro@tccon.com.br' },
   });
   assert.equal(limited.status, 429);
   assert.equal(limited.json.error, 'too_many_attempts');
@@ -160,7 +177,7 @@ test('password reset reports an unavailable email service safely', async (t) => 
   });
   const response = await request(server, '/api/gate/reset', {
     method: 'POST',
-    body: { usuario: 'system-user' },
+    body: { email: 'financeiro@tccon.com.br' },
   });
   assert.equal(response.status, 503);
   assert.equal(response.json.error, 'reset_email_unavailable');

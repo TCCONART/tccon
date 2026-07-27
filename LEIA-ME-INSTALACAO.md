@@ -82,12 +82,14 @@ TCCON_SMTP_SECURE=false
 TCCON_SMTP_USER=conta-de-envio@tccon.com.br
 TCCON_SMTP_PASSWORD=senha-ou-token-do-provedor
 TCCON_SMTP_FROM=conta-de-envio@tccon.com.br
-TCCON_PASSWORD_RESET_TO=financeiro@tccon.com.br
+TCCON_PUBLIC_URL=https://orcamentos.seudominio.com.br
 ```
 
 Use `TCCON_SMTP_SECURE=true` para SMTP TLS implícito, normalmente na porta
 465. Na porta 587, mantenha `false`; o servidor exige e negocia STARTTLS antes
 de autenticar. A senha SMTP deve existir somente no `.env` da VPS.
+O destinatário é fixo em `financeiro@tccon.com.br`; a interface e o servidor
+recusam qualquer outro endereço. Os links expiram em 30 minutos e são de uso único.
 
 `TCCON_DOMAIN` também limita o cabeçalho `Host` aceito pela aplicação. Os nomes
 `localhost` e os IPs de loopback continuam liberados para healthchecks locais.

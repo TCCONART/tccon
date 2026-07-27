@@ -32,6 +32,11 @@
     #toggle-senha svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
     #redefinir{height:auto;margin:0 0 16px;padding:6px 2px;background:transparent;color:#2f5d86;text-align:right;font-size:13px;font-weight:700}
     #redefinir:hover{text-decoration:underline}
+    .modal{display:none;position:fixed;inset:0;z-index:50;background:rgba(23,21,18,.62);padding:20px;align-items:center;justify-content:center}
+    .modal.open{display:flex}
+    .modal-card{width:100%;max-width:440px;background:#fff;border-radius:16px;padding:28px;box-shadow:0 24px 70px rgba(0,0,0,.3)}
+    .modal-card h2{margin:0 0 8px;font-size:22px}.modal-card p{color:#777065;font-size:13.5px;line-height:1.5}
+    .modal-actions{display:flex;gap:10px}.modal-actions button{margin:0}.modal-actions .cancel{background:#eee9e1;color:#514b43}
     @media(max-width:760px){.page{grid-template-columns:1fr}.brand{min-height:250px;padding:30px 24px}.access{padding:30px 18px}.card{padding:28px 22px}.title{font-size:34px}}
   </style>
 </head>
@@ -68,6 +73,19 @@
       </form>
     </section>
   </main>
+  <div class="modal" id="reset-modal" role="dialog" aria-modal="true" aria-labelledby="reset-title">
+    <div class="modal-card">
+      <h2 id="reset-title">Solicitar redefinição</h2>
+      <p>O link seguro será enviado exclusivamente ao financeiro da TCCON.</p>
+      <div id="reset-error" role="alert"></div>
+      <label for="reset-email">E-MAIL AUTORIZADO</label>
+      <input id="reset-email" type="email" value="financeiro@tccon.com.br" readonly>
+      <div class="modal-actions">
+        <button class="cancel" id="cancelar-reset" type="button">Cancelar</button>
+        <button id="enviar-reset" type="button">Enviar link</button>
+      </div>
+    </div>
+  </div>
   <script>
     const form=document.getElementById('login-form');
     const errorBox=document.getElementById('error');
@@ -76,6 +94,9 @@
     const resetButton=document.getElementById('redefinir');
     const passwordInput=document.getElementById('senha');
     const passwordToggle=document.getElementById('toggle-senha');
+    const resetModal=document.getElementById('reset-modal');
+    const sendResetButton=document.getElementById('enviar-reset');
+    const resetError=document.getElementById('reset-error');
 
     passwordToggle.addEventListener('click',()=>{
       const visible=passwordInput.type==='text';
@@ -86,39 +107,37 @@
       passwordInput.focus();
     });
 
-    resetButton.addEventListener('click',async()=>{
+    resetButton.addEventListener('click',()=>{
       errorBox.style.display='none';
       noticeBox.style.display='none';
-      const usuario=form.usuario.value.trim();
-      if(!usuario){
-        errorBox.textContent='Informe o usuário para solicitar a redefinição.';
-        errorBox.style.display='block';
-        form.usuario.focus();
-        return;
-      }
-      resetButton.disabled=true;
-      resetButton.textContent='Enviando solicitação...';
+      resetError.textContent='';
+      resetModal.classList.add('open');
+      sendResetButton.focus();
+    });
+    document.getElementById('cancelar-reset').addEventListener('click',()=>resetModal.classList.remove('open'));
+    sendResetButton.addEventListener('click',async()=>{
+      sendResetButton.disabled=true;
+      sendResetButton.textContent='Enviando...';
       try{
         const response=await fetch('/api/gate/reset',{
           method:'POST',
           headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({usuario})
+          body:JSON.stringify({email:'financeiro@tccon.com.br'})
         });
         if(response.ok){
-          noticeBox.textContent='Solicitação enviada para financeiro@tccon.com.br. Aguarde o contato para redefinir sua senha.';
+          resetModal.classList.remove('open');
+          noticeBox.textContent='Link de redefinição enviado para financeiro@tccon.com.br.';
           noticeBox.style.display='block';
         }else{
-          errorBox.textContent=response.status===429
+          resetError.textContent=response.status===429
             ?'Muitas solicitações. Aguarde alguns minutos.'
             :'Não foi possível enviar agora. Entre em contato com financeiro@tccon.com.br.';
-          errorBox.style.display='block';
         }
       }catch{
-        errorBox.textContent='Não foi possível conectar ao servidor.';
-        errorBox.style.display='block';
+        resetError.textContent='Não foi possível conectar ao servidor.';
       }
-      resetButton.disabled=false;
-      resetButton.textContent='Esqueci minha senha';
+      sendResetButton.disabled=false;
+      sendResetButton.textContent='Enviar link';
     });
 
     form.addEventListener('submit',async event=>{

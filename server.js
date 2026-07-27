@@ -19,6 +19,9 @@ const GATE_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const MAX_GATE_SESSIONS = 1000;
 const RESET_REQUEST_WINDOW_MS = 10 * 60 * 1000;
 const MAX_RESET_REQUESTS = 3;
+const RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
+const MAX_RESET_TOKENS = 20;
+const PASSWORD_RESET_EMAIL = 'financeiro@tccon.com.br';
 const DEFAULT_GATE_USERNAME = 'tcconorc';
 const DEFAULT_GATE_PASSWORD_HASH = 'd7a6525cef4b8a918c57e6e7f08cb63095d10470d48bf392d1e1ca7e1e2baeba';
 
@@ -134,6 +137,17 @@ function parseDomain(value) {
   return domain;
 }
 
+function parsePublicUrl(value) {
+  if (value === undefined || value === '') return null;
+  let parsed;
+  try { parsed = new URL(String(value)); } catch { throw new Error('TCCON_PUBLIC_URL must be a valid URL'); }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.search || parsed.hash) {
+    throw new Error('TCCON_PUBLIC_URL must be an HTTPS origin');
+  }
+  parsed.pathname = '/';
+  return parsed.origin;
+}
+
 function createApplication(options = {}) {
   const publicDir = path.resolve(options.publicDir || process.env.PUBLIC_DIR || path.join(__dirname, 'public'));
   const dataDir = path.resolve(options.dataDir || process.env.DATA_DIR || path.join(__dirname, 'data'));
@@ -149,10 +163,11 @@ function createApplication(options = {}) {
   );
   const logger = options.logger || logJson;
   const domain = parseDomain(options.domain ?? process.env.TCCON_DOMAIN);
+  const publicUrl = parsePublicUrl(options.publicUrl ?? process.env.TCCON_PUBLIC_URL);
   const gateEnabled = options.gateEnabled !== false;
   const gateUsername = String(options.gateUsername || process.env.TCCON_GATE_USER || DEFAULT_GATE_USERNAME);
   const configuredGatePassword = options.gatePassword || process.env.TCCON_GATE_PASSWORD;
-  const gatePasswordHash = configuredGatePassword
+  const initialGatePasswordHash = configuredGatePassword
     ? crypto.createHash('sha256').update(String(configuredGatePassword)).digest('hex')
     : DEFAULT_GATE_PASSWORD_HASH;
   const passwordResetNotifier = options.passwordResetNotifier === undefined
@@ -166,6 +181,8 @@ function createApplication(options = {}) {
   ]);
   const storeFile = path.join(dataDir, 'store.json');
   const authFile = path.join(dataDir, 'auth.json');
+  const gateFile = path.join(dataDir, 'gate.json');
+  const resetFile = path.join(dataDir, 'reset-tokens.json');
 
   ensureDirectory(dataDir);
   if (!fs.existsSync(publicDir) || !fs.statSync(publicDir).isDirectory()) {
@@ -179,6 +196,23 @@ function createApplication(options = {}) {
     maxStoreBytes,
   );
   let auth = readJsonStrict(authFile, {}, isAuthStore, MAX_AUTH_BYTES);
+  let gateState = readJsonStrict(
+    gateFile,
+    { passwordHash: initialGatePasswordHash },
+    (value) => isRecord(value) && /^[0-9a-f]{64}$/.test(value.passwordHash),
+    4096,
+  );
+  let resetState = readJsonStrict(
+    resetFile,
+    { tokens: {} },
+    (value) => isRecord(value) && isRecord(value.tokens) &&
+      Object.keys(value.tokens).length <= MAX_RESET_TOKENS &&
+      Object.keys(value.tokens).every((tokenHash) => /^[0-9a-f]{64}$/.test(tokenHash)) &&
+      Object.values(value.tokens).every((record) =>
+        isRecord(record) && Number.isSafeInteger(record.expiresAt) && record.expiresAt > 0),
+    64 * 1024,
+  );
+  let gatePasswordHash = gateState.passwordHash;
   let shuttingDown = false;
   const authFailures = new Map();
   const resetRequests = new Map();
@@ -447,6 +481,18 @@ function createApplication(options = {}) {
       crypto.timingSafeEqual(passwordHash, expectedPasswordHash);
   }
 
+  function persistResetState(tokens) {
+    resetState = { tokens };
+    atomicWriteJson(resetFile, resetState);
+  }
+
+  function pruneResetTokens(now = Date.now()) {
+    const tokens = Object.fromEntries(
+      Object.entries(resetState.tokens).filter(([, record]) => record.expiresAt > now),
+    );
+    if (Object.keys(tokens).length !== Object.keys(resetState.tokens).length) persistResetState(tokens);
+  }
+
   function requireSameSite(req) {
     if (String(req.headers['sec-fetch-site'] || '').toLowerCase() === 'cross-site') {
       throw new HttpError(403, 'cross_site_request_denied');
@@ -488,7 +534,9 @@ function createApplication(options = {}) {
     }
     if (decoded.includes('\0')) throw new HttpError(400, 'bad_path');
 
-    if (gateEnabled && !gateSession(req)) decoded = '/login.html';
+    if (decoded === '/redefinir-senha' || decoded === '/redefinir-senha/') {
+      decoded = '/reset-password.html';
+    } else if (gateEnabled && !gateSession(req)) decoded = '/login.html';
     else if (decoded === '/' || decoded === '') decoded = '/index.html';
     const candidate = path.resolve(publicDir, `.${decoded.replaceAll('\\', '/')}`);
     const relative = path.relative(publicDir, candidate);
@@ -578,16 +626,25 @@ function createApplication(options = {}) {
     if (pathname === '/api/gate/reset' && req.method === 'POST') {
       requireSameSite(req);
       const body = await readJsonBody(req);
-      const username = body && String(body.usuario || '').trim();
-      if (!username || username.length > 128 || /[\r\n]/.test(username)) {
-        throw new HttpError(400, 'invalid_username');
-      }
+      const email = body && String(body.email || '').trim().toLowerCase();
+      if (email !== PASSWORD_RESET_EMAIL) throw new HttpError(400, 'invalid_reset_email');
       const tracker = checkResetRateLimit(req);
       if (!passwordResetNotifier) throw new HttpError(503, 'reset_email_unavailable');
+      if (!publicUrl) throw new HttpError(503, 'reset_url_unavailable');
       recordResetRequest(tracker);
+      pruneResetTokens();
+      const token = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const entries = Object.entries(resetState.tokens);
+      if (entries.length >= MAX_RESET_TOKENS) entries.shift();
+      persistResetState({
+        ...Object.fromEntries(entries),
+        [tokenHash]: { expiresAt: Date.now() + RESET_TOKEN_TTL_MS },
+      });
       try {
         await passwordResetNotifier({
-          username,
+          email: PASSWORD_RESET_EMAIL,
+          resetUrl: `${publicUrl}/redefinir-senha?token=${token}`,
           requestedAt: new Date().toISOString(),
           address: clientAddress(req),
           userAgent: req.headers['user-agent'],
@@ -596,10 +653,36 @@ function createApplication(options = {}) {
         logger('error', 'password_reset_notification_failed', {
           errorCode: error.code || error.name || 'Error',
         });
+        const remaining = { ...resetState.tokens };
+        delete remaining[tokenHash];
+        persistResetState(remaining);
         throw new HttpError(503, 'reset_email_unavailable');
       }
       logger('info', 'password_reset_requested', { destination: 'financeiro' });
       return sendJson(res, 202, { ok: true });
+    }
+
+    if (pathname === '/api/gate/reset/complete' && req.method === 'POST') {
+      requireSameSite(req);
+      const body = await readJsonBody(req);
+      const token = body && String(body.token || '');
+      const password = body && String(body.senha || '');
+      if (!/^[0-9a-f]{64}$/.test(token) || password.length < 10 || password.length > 256) {
+        throw new HttpError(400, 'invalid_reset');
+      }
+      pruneResetTokens();
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      if (!Object.hasOwn(resetState.tokens, tokenHash)) throw new HttpError(400, 'invalid_or_expired_token');
+      const remaining = { ...resetState.tokens };
+      delete remaining[tokenHash];
+      persistResetState(remaining);
+      gatePasswordHash = crypto.createHash('sha256').update(password).digest('hex');
+      gateState = { passwordHash: gatePasswordHash };
+      atomicWriteJson(gateFile, gateState);
+      gateSessions.clear();
+      authFailures.clear();
+      logger('info', 'gate_password_reset_completed');
+      return sendJson(res, 200, { ok: true });
     }
 
     if (pathname === '/api/gate/logout' && req.method === 'POST') {
@@ -749,7 +832,7 @@ function createApplication(options = {}) {
     logger('info', 'shutdown_complete', { signal });
   }
 
-  return { server, shutdown, paths: { publicDir, dataDir, storeFile, authFile } };
+  return { server, shutdown, paths: { publicDir, dataDir, storeFile, authFile, gateFile, resetFile } };
 }
 
 function startFromEnvironment() {
