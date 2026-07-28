@@ -810,9 +810,10 @@ template = replaceOnce(
   'system access render values',
 );
 
-template = replaceOnce(
-  template,
-  `  componentDidMount(){
+if (!template.includes('componentDidUpdate(prevProps,prevState)')) {
+  template = replaceOnce(
+    template,
+    `  componentDidMount(){
     this.setState({data:this.today(), numero:this.genNumero(), markup:this.props.markupPadrao ?? 2, showMargem:this.props.mostrarMargem ?? false});
     this.checkGate();
   }
@@ -823,7 +824,7 @@ template = replaceOnce(
     if(this._onWindowFocus)window.removeEventListener('focus',this._onWindowFocus);
     clearTimeout(this._t);
   }`,
-  `  componentDidMount(){
+    `  componentDidMount(){
     this.setState({data:this.today(), numero:this.genNumero(), markup:this.props.markupPadrao ?? 2, showMargem:this.props.mostrarMargem ?? false});
     this._onBeforeUnload=()=>this.saveDraftNow();
     window.addEventListener('beforeunload',this._onBeforeUnload);
@@ -845,8 +846,9 @@ template = replaceOnce(
     if(this._onWindowFocus)window.removeEventListener('focus',this._onWindowFocus);
     clearTimeout(this._t);
   }`,
-  'automatic draft lifecycle',
-);
+    'automatic draft lifecycle',
+  );
+}
 
 const syncSectionStart = template.indexOf('  apiBase(){');
 const pendingSectionStart = template.indexOf('  pendingGet(){', syncSectionStart);
@@ -948,15 +950,17 @@ template = replaceOnce(
   'persistent quote drafts',
 );
 
-template = replaceOnce(
-  template,
-  `    const orcamentos=this.lsGet(this.orcKey(id))||[];
+if (!template.includes('const draft=this.draftPatch(this.lsGet(this.draftKey(id)))')) {
+  template = replaceOnce(
+    template,
+    `    const orcamentos=this.lsGet(this.orcKey(id))||[];
     this.setState({currentUserId:id, orcamentos, view:'editor', editingId:null});`,
-  `    const orcamentos=this.lsGet(this.orcKey(id))||[];
+    `    const orcamentos=this.lsGet(this.orcKey(id))||[];
     const draft=this.draftPatch(this.lsGet(this.draftKey(id)));
     this.setState({...draft,currentUserId:id,orcamentos,view:'editor'});`,
-  'restore persistent quote draft',
-);
+    'restore persistent quote draft',
+  );
+}
 
 template = replaceOnce(
   template,
@@ -1059,13 +1063,14 @@ template = replaceOnce(
   'move total quantity below the item table',
 );
 
-template = replaceOnce(
-  template,
-  `          </sc-for>
+if (!template.includes('data-quantity-total="editor"')) {
+  template = replaceOnce(
+    template,
+    `          </sc-for>
         </div>
         </sc-if>
         <sc-if value="{{ noItens }}"`,
-  `          </sc-for>
+    `          </sc-for>
           <div data-quantity-total="editor" class="data-grid" style="display:grid;grid-template-columns:44px 1fr 92px 130px 96px 130px 40px;align-items:center;padding:10px 14px;border-top:1px solid #d8d2c8;background:#faf8f4;">
             <span style="grid-column:1 / 3;text-align:right;padding-right:14px;font-size:12px;font-weight:700;color:#6b655c;text-transform:uppercase;letter-spacing:.3px;">Quantidade total</span>
             <span style="text-align:center;font-family:'IBM Plex Mono';font-size:14px;font-weight:700;color:var(--accent,#2f5d86);">{{ quantidadeTotalStr }}</span>
@@ -1073,8 +1078,9 @@ template = replaceOnce(
         </div>
         </sc-if>
         <sc-if value="{{ noItens }}"`,
-  'quantity total under the quantity column',
-);
+    'quantity total under the quantity column',
+  );
+}
 
 template = replaceOnce(
   template,
@@ -1097,6 +1103,442 @@ template = replaceOnce(
           </div>`,
   'quantity total under material description',
 );
+
+if (!template.includes('data-romaneio-page="true"')) {
+  template = replaceOnce(
+    template,
+    `  @media print{
+    body{background:#fff;}
+    [data-noprint]{display:none !important;}
+    .doc-wrap{padding:0 !important;background:#fff !important;}
+    .doc{box-shadow:none !important;margin:0 !important;width:100% !important;max-width:100% !important;}
+  }`,
+    `  @media print{
+    body{background:#fff;}
+    [data-noprint]{display:none !important;}
+    .doc-wrap{padding:0 !important;background:#fff !important;}
+    .doc{box-shadow:none !important;margin:0 !important;width:100% !important;max-width:100% !important;}
+    body.printing-romaneio .app-toolbar,
+    body.printing-romaneio .romaneio-controls,
+    body.printing-romaneio .romaneio-history,
+    body.printing-romaneio .romaneio-search{display:none !important;}
+    body.printing-romaneio .app-page{padding:0 !important;background:#fff !important;}
+    body.printing-romaneio .romaneio-sheet{border:none !important;box-shadow:none !important;border-radius:0 !important;margin:0 !important;max-width:none !important;}
+    body.printing-romaneio .romaneio-sheet input,
+    body.printing-romaneio .romaneio-sheet textarea{border-color:transparent !important;background:transparent !important;}
+  }`,
+    'romaneio print styles',
+  );
+
+  template = replaceOnce(
+    template,
+    `        <button sc-camel-on-click="{{ goMateriais }}" style="{{ tabMat }}">Materiais</button>
+        <button sc-camel-on-click="{{ goHistorico }}" style="{{ tabHist }}">Orçamentos</button>`,
+    `        <button sc-camel-on-click="{{ goMateriais }}" style="{{ tabMat }}">Materiais</button>
+        <button sc-camel-on-click="{{ goRomaneio }}" style="{{ tabRom }}">Romaneio</button>
+        <button sc-camel-on-click="{{ goHistorico }}" style="{{ tabHist }}">Orçamentos</button>`,
+    'romaneio navigation tab',
+  );
+
+  template = replaceOnce(
+    template,
+    `    showCliForm:false, cliForm:{cod:null,nome:'',fone:'',cnpj:'',endereco:'',cidade:''},
+  };`,
+    `    showCliForm:false, cliForm:{cod:null,nome:'',fone:'',cnpj:'',endereco:'',cidade:''},
+    romaneios:[], romEditingId:null, romNumero:'', romData:'', romSearch:'', romCliSearch:'',
+    romCliente:{nome:'',cnpj:'',endereco:'',bairro:'',cidade:'',cep:'',uf:'',contato:'',ref:''},
+    romItens:[], romFrete:'', romDesconto:'', romObs:'', romRecebedor:'', romRecebimentoData:'',
+  };`,
+    'romaneio state',
+  );
+
+  template = replaceOnce(
+    template,
+    `    this.setState({data:this.today(), numero:this.genNumero(), markup:this.props.markupPadrao ?? 2, showMargem:this.props.mostrarMargem ?? false});`,
+    `    this.setState({data:this.today(), numero:this.genNumero(), romData:this.today(), romNumero:'R-'+this.genNumero(), markup:this.props.markupPadrao ?? 2, showMargem:this.props.mostrarMargem ?? false});`,
+    'initial romaneio identification',
+  );
+
+  template = replaceAll(
+    template,
+    `    const keys=['tccon_materiais','tccon_clientes','tccon_users'];
+    if(this.state.currentUserId)keys.push(this.orcKey(this.state.currentUserId));`,
+    `    const keys=['tccon_materiais','tccon_clientes','tccon_users'];
+    if(this.state.currentUserId)keys.push(this.orcKey(this.state.currentUserId),this.romKey(this.state.currentUserId));`,
+    'romaneio realtime keys',
+  );
+
+  template = replaceAll(
+    template,
+    `    else if(this.state.currentUserId && k===this.orcKey(this.state.currentUserId))patch.orcamentos=val;
+    if(Object.keys(patch).length)this.setState(patch);`,
+    `    else if(this.state.currentUserId && k===this.orcKey(this.state.currentUserId))patch.orcamentos=val;
+    else if(this.state.currentUserId && k===this.romKey(this.state.currentUserId))patch.romaneios=val;
+    if(Object.keys(patch).length)this.setState(patch);`,
+    'romaneio realtime update',
+  );
+
+  template = replaceOnce(
+    template,
+    `  orcKey(id){ return 'tccon_orcamentos_'+id; }
+  draftKey(id){ return 'tccon_rascunho_'+id; }`,
+    `  orcKey(id){ return 'tccon_orcamentos_'+id; }
+  romKey(id){ return 'tccon_romaneios_'+id; }
+  draftKey(id){ return 'tccon_rascunho_'+id; }`,
+    'romaneio storage key',
+  );
+
+  template = replaceOnce(
+    template,
+    `    const orcamentos=this.lsGet(this.orcKey(id))||[];
+    const draft=this.draftPatch(this.lsGet(this.draftKey(id)));
+    this.setState({...draft,currentUserId:id,orcamentos,view:'editor'});`,
+    `    const orcamentos=this.lsGet(this.orcKey(id))||[];
+    const romaneios=this.lsGet(this.romKey(id))||[];
+    const draft=this.draftPatch(this.lsGet(this.draftKey(id)));
+    this.setState({...draft,currentUserId:id,orcamentos,romaneios,view:'editor'});`,
+    'load saved romaneios',
+  );
+
+  template = replaceOnce(
+    template,
+    `  deleteCliente(cod){ if(!confirm('Excluir este cliente do cadastro?'))return; this.setState(s=>{const clientes=s.clientes.filter(c=>c.cod!==cod);this.lsSet('tccon_clientes',clientes);return{clientes};}); this.flash('Cliente excluído.'); }
+
+  renderVals(){`,
+    `  deleteCliente(cod){ if(!confirm('Excluir este cliente do cadastro?'))return; this.setState(s=>{const clientes=s.clientes.filter(c=>c.cod!==cod);this.lsSet('tccon_clientes',clientes);return{clientes};}); this.flash('Cliente excluído.'); }
+
+  goRomaneio(){
+    this.setState(s=>({view:'romaneio',romNumero:s.romNumero||('R-'+this.genNumero()),romData:s.romData||this.today()}));
+  }
+  setRomCliente(f,v){ this.setState(s=>({romCliente:{...s.romCliente,[f]:v}})); }
+  useRomClient(c){
+    this.setState({
+      romCliente:{
+        nome:c.nome||'',cnpj:c.cnpj||'',endereco:c.endereco||'',bairro:c.bairro||'',
+        cidade:c.cidade||'',cep:c.cep||'',uf:c.uf||'',contato:c.fone||'',ref:''
+      },
+      romCliSearch:'',
+    });
+  }
+  addRomProduct(p){
+    this.setState(s=>({
+      romItens:[...s.romItens,{cod:p.cod,desc:p.desc,qtd:'1',peso:this.num(p.peso),vunit:String(this.num(p.preco))}],
+      romSearch:'',
+    }));
+  }
+  setRomItem(i,f,v){ this.setState(s=>{const itens=s.romItens.slice();itens[i]={...itens[i],[f]:v};return{romItens:itens};}); }
+  removeRomItem(i){ this.setState(s=>({romItens:s.romItens.filter((_,x)=>x!==i)})); }
+  importCurrentQuote(){
+    if(!this.state.itens.length){this.flash('O orçamento atual não possui materiais.');return;}
+    this.setState(s=>({
+      view:'romaneio',
+      romCliente:{
+        nome:s.cliente.nome||'',cnpj:s.cliente.cnpj||'',endereco:s.cliente.endereco||'',
+        bairro:'',cidade:'',cep:'',uf:'',contato:s.cliente.contato||'',ref:'Orçamento '+s.numero
+      },
+      romItens:s.itens.map(it=>({cod:it.cod,desc:it.desc,qtd:it.qtd,peso:this.num(it.peso),vunit:String(this.num(it.vunit))})),
+      romNumero:s.romNumero||('R-'+this.genNumero()),romData:this.today(),
+    }));
+    this.flash('Orçamento atual carregado no romaneio.');
+  }
+  newRomaneio(){
+    this.setState({
+      romEditingId:null,romNumero:'R-'+this.genNumero(),romData:this.today(),romSearch:'',romCliSearch:'',
+      romCliente:{nome:'',cnpj:'',endereco:'',bairro:'',cidade:'',cep:'',uf:'',contato:'',ref:''},
+      romItens:[],romFrete:'',romDesconto:'',romObs:'',romRecebedor:'',romRecebimentoData:'',
+    });
+  }
+  saveRomaneio(){
+    const s=this.state;
+    if(!s.romCliente.nome.trim()){this.flash('Informe o cliente do romaneio.');return;}
+    if(!s.romItens.length){this.flash('Adicione ao menos um material ao romaneio.');return;}
+    const subtotal=s.romItens.reduce((a,it)=>a+this.num(it.qtd)*this.num(it.vunit),0);
+    const desconto=Math.min(subtotal,Math.max(0,this.num(s.romDesconto)));
+    const total=subtotal-desconto+Math.max(0,this.num(s.romFrete));
+    const rec={
+      id:s.romEditingId||('r'+Date.now()),numero:s.romNumero,data:s.romData,
+      cliente:{...s.romCliente},itens:s.romItens.map(it=>({...it})),frete:s.romFrete,
+      desconto:s.romDesconto,obs:s.romObs,recebedor:s.romRecebedor,
+      recebimentoData:s.romRecebimentoData,total,savedAt:Date.now(),
+    };
+    this.setState(st=>{
+      const romaneios=[rec,...st.romaneios.filter(r=>r.id!==rec.id)];
+      this.lsSet(this.romKey(st.currentUserId),romaneios);
+      return {romaneios,romEditingId:rec.id};
+    });
+    this.flash('Romaneio '+s.romNumero+' salvo.');
+  }
+  openRomaneio(id){
+    const r=this.state.romaneios.find(x=>x.id===id);if(!r)return;
+    this.setState({
+      view:'romaneio',romEditingId:r.id,romNumero:r.numero,romData:r.data,
+      romCliente:{...r.cliente},romItens:r.itens.map(it=>({...it})),romFrete:r.frete||'',
+      romDesconto:r.desconto||'',romObs:r.obs||'',romRecebedor:r.recebedor||'',
+      romRecebimentoData:r.recebimentoData||'',romSearch:'',romCliSearch:'',
+    });
+  }
+  deleteRomaneio(id){
+    if(!confirm('Excluir este romaneio salvo?'))return;
+    this.setState(s=>{
+      const romaneios=s.romaneios.filter(r=>r.id!==id);
+      this.lsSet(this.romKey(s.currentUserId),romaneios);
+      return {romaneios};
+    });
+    this.flash('Romaneio excluído.');
+  }
+  printRomaneio(){
+    const oldTitle=document.title;
+    const numero=String(this.state.romNumero||'romaneio').trim().replace(/[^a-zA-Z0-9_-]+/g,'-');
+    const restore=()=>{document.title=oldTitle;document.body.classList.remove('printing-romaneio');window.removeEventListener('afterprint',restore);};
+    document.title='Romaneio-'+numero;
+    document.body.classList.add('printing-romaneio');
+    window.addEventListener('afterprint',restore);
+    setTimeout(()=>window.print(),0);
+    setTimeout(restore,60000);
+  }
+
+  renderVals(){`,
+    'romaneio actions',
+  );
+
+  template = replaceOnce(
+    template,
+    `    };
+
+    const subtotal=s.itens.reduce((a,it)=>a+this.num(it.qtd)*this.num(it.vunit),0);`,
+    `    };
+
+    const romRows=s.romItens.map((it,i)=>{
+      const qtd=this.num(it.qtd),peso=this.num(it.peso),vunit=this.num(it.vunit);
+      return {
+        cod:it.cod||'—',desc:it.desc||'',qtd:it.qtd,peso:it.peso,vunit:it.vunit,
+        pesoUnitStr:this.kg(peso),pesoTotalStr:this.kg(qtd*peso),
+        vunitStr:this.brl(vunit),totalStr:this.brl(qtd*vunit),
+        onQtd:e=>this.setRomItem(i,'qtd',e.target.value),
+        onDesc:e=>this.setRomItem(i,'desc',e.target.value),
+        onPeso:e=>this.setRomItem(i,'peso',e.target.value),
+        onVunit:e=>this.setRomItem(i,'vunit',e.target.value),
+        remove:()=>this.removeRomItem(i),
+      };
+    });
+    const romQuantidade=romRows.reduce((a,r)=>a+this.num(r.qtd),0);
+    const romPesoTotal=s.romItens.reduce((a,it)=>a+this.num(it.qtd)*this.num(it.peso),0);
+    const romSubtotal=s.romItens.reduce((a,it)=>a+this.num(it.qtd)*this.num(it.vunit),0);
+    const romDescontoRs=Math.min(romSubtotal,Math.max(0,this.num(s.romDesconto)));
+    const romFreteRs=Math.max(0,this.num(s.romFrete));
+    const romTotal=romSubtotal-romDescontoRs+romFreteRs;
+    const romQ=s.romSearch.trim().toLocaleLowerCase('pt-BR');
+    const romSearchResults=romQ?s.products.filter(p=>String(p.cod).includes(romQ)||(p.desc||'').toLocaleLowerCase('pt-BR').includes(romQ)).slice(0,7).map(p=>({
+      cod:p.cod,desc:p.desc,pesoStr:this.kg(p.peso),precoStr:this.brl(p.preco),
+      add:()=>this.addRomProduct(p),
+      onKey:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();this.addRomProduct(p);}},
+    })):[];
+    const romCliQ=s.romCliSearch.trim().toLocaleLowerCase('pt-BR');
+    const romClientResults=romCliQ?s.clientes.filter(c=>(c.nome||'').toLocaleLowerCase('pt-BR').includes(romCliQ)||String(c.cnpj||'').includes(romCliQ)).slice(0,6).map(c=>({
+      nome:c.nome,sub:[c.cnpj,c.cidade,c.uf].filter(Boolean).join(' · '),use:()=>this.useRomClient(c),
+    })):[];
+    const romHistRows=s.romaneios.slice(0,8).map(r=>({
+      numero:r.numero,cliente:(r.cliente&&r.cliente.nome)||'—',data:r.data||'—',
+      totalStr:this.brl(r.total),open:()=>this.openRomaneio(r.id),del:()=>this.deleteRomaneio(r.id),
+    }));
+
+    const subtotal=s.itens.reduce((a,it)=>a+this.num(it.qtd)*this.num(it.vunit),0);`,
+    'romaneio calculations',
+  );
+
+  template = replaceOnce(
+    template,
+    `      isEditor:s.view==='editor', isMateriais:s.view==='materiais', isHistorico:s.view==='historico', isClientes:s.view==='clientes', isPerfil:s.view==='perfil',`,
+    `      isEditor:s.view==='editor', isMateriais:s.view==='materiais', isRomaneio:s.view==='romaneio', isHistorico:s.view==='historico', isClientes:s.view==='clientes', isPerfil:s.view==='perfil',`,
+    'romaneio view flag',
+  );
+
+  template = replaceOnce(
+    template,
+    `goEditor:()=>this.setState({view:'editor'}), atualizarPagina:()=>{this.saveDraftNow();window.location.reload();}, goMateriais:()=>this.setState({view:'materiais'}),`,
+    `goEditor:()=>this.setState({view:'editor'}), atualizarPagina:()=>{this.saveDraftNow();window.location.reload();}, goMateriais:()=>this.setState({view:'materiais'}), goRomaneio:()=>this.goRomaneio(),`,
+    'romaneio navigation action',
+  );
+
+  template = replaceOnce(
+    template,
+    `tabOrc:navTab(s.view==='editor'), tabMat:navTab(s.view==='materiais'), tabHist:navTab(s.view==='historico'), tabCli:navTab(s.view==='clientes'), tabPerfil:navTab(s.view==='perfil'),`,
+    `tabOrc:navTab(s.view==='editor'), tabMat:navTab(s.view==='materiais'), tabRom:navTab(s.view==='romaneio'), tabHist:navTab(s.view==='historico'), tabCli:navTab(s.view==='clientes'), tabPerfil:navTab(s.view==='perfil'),`,
+    'romaneio navigation style',
+  );
+
+  template = replaceOnce(
+    template,
+    `      matRows, matSearch:s.matSearch, onMatSearch:e=>this.setState({matSearch:e.target.value}), matCount:s.products.length, addMaterial:()=>this.addMaterial(),
+
+      histRows,`,
+    `      matRows, matSearch:s.matSearch, onMatSearch:e=>this.setState({matSearch:e.target.value}), matCount:s.products.length, addMaterial:()=>this.addMaterial(),
+
+      romNumero:s.romNumero,romData:s.romData,romCliente:s.romCliente,romItens:romRows,
+      romSearch:s.romSearch,onRomSearch:e=>this.setState({romSearch:e.target.value}),
+      romSearchResults,showRomSearch:romQ.length>0,noRomSearch:romQ.length>0&&romSearchResults.length===0,
+      romCliSearch:s.romCliSearch,onRomCliSearch:e=>this.setState({romCliSearch:e.target.value}),
+      romClientResults,showRomClientResults:romCliQ.length>0,noRomClientResults:romCliQ.length>0&&romClientResults.length===0,
+      onRomNumero:e=>this.setState({romNumero:e.target.value}),onRomData:e=>this.setState({romData:e.target.value}),
+      onRomNome:e=>this.setRomCliente('nome',e.target.value),onRomCnpj:e=>this.setRomCliente('cnpj',e.target.value),
+      onRomEndereco:e=>this.setRomCliente('endereco',e.target.value),onRomBairro:e=>this.setRomCliente('bairro',e.target.value),
+      onRomCidade:e=>this.setRomCliente('cidade',e.target.value),onRomCep:e=>this.setRomCliente('cep',e.target.value),
+      onRomUf:e=>this.setRomCliente('uf',e.target.value),onRomContato:e=>this.setRomCliente('contato',e.target.value),
+      onRomRef:e=>this.setRomCliente('ref',e.target.value),romFrete:s.romFrete,onRomFrete:e=>this.setState({romFrete:e.target.value}),
+      romDesconto:s.romDesconto,onRomDesconto:e=>this.setState({romDesconto:e.target.value}),
+      romObs:s.romObs,onRomObs:e=>this.setState({romObs:e.target.value}),
+      romRecebedor:s.romRecebedor,onRomRecebedor:e=>this.setState({romRecebedor:e.target.value}),
+      romRecebimentoData:s.romRecebimentoData,onRomRecebimentoData:e=>this.setState({romRecebimentoData:e.target.value}),
+      hasRomItens:romRows.length>0,noRomItens:romRows.length===0,
+      romQuantidadeStr:romQuantidade.toLocaleString('pt-BR',{maximumFractionDigits:3}),
+      romPesoTotalStr:this.kg(romPesoTotal),romSubtotalStr:this.brl(romSubtotal),
+      romDescontoStr:this.brl(romDescontoRs),romFreteStr:this.brl(romFreteRs),romTotalStr:this.brl(romTotal),
+      novoRomaneio:()=>this.newRomaneio(),salvarRomaneio:()=>this.saveRomaneio(),
+      imprimirRomaneio:()=>this.printRomaneio(),importarOrcamento:()=>this.importCurrentQuote(),
+      romHistRows,hasRomHistorico:romHistRows.length>0,noRomHistorico:romHistRows.length===0,
+
+      histRows,`,
+    'romaneio render bindings',
+  );
+
+  const romaneioPage = `
+    <!-- ---------- ABA ROMANEIO ---------- -->
+    <sc-if value="{{ isRomaneio }}" hint-placeholder-val="{{ false }}">
+    <div class="app-page" data-romaneio-page="true" style="flex:1;padding:28px 24px 64px;background:#ece9e2;">
+    <div style="max-width:1180px;margin:0 auto;">
+      <div class="romaneio-controls" style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;">
+        <div>
+          <div style="font-family:'Barlow Semi Condensed';font-weight:700;font-size:24px;">Romaneio de entrega</div>
+          <div style="font-size:12.5px;color:#8a8377;margin-top:2px;">Monte o pedido com os clientes e materiais já cadastrados</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+          <button sc-camel-on-click="{{ importarOrcamento }}" style="padding:9px 13px;border:1px solid #c9c1b5;border-radius:8px;background:#fff;color:#4a463f;font-size:12.5px;font-weight:600;cursor:pointer;">Importar orçamento atual</button>
+          <button sc-camel-on-click="{{ novoRomaneio }}" style="padding:9px 13px;border:1px solid #c9c1b5;border-radius:8px;background:#fff;color:#4a463f;font-size:12.5px;font-weight:600;cursor:pointer;">Novo</button>
+          <button sc-camel-on-click="{{ salvarRomaneio }}" style="padding:9px 15px;border:1px solid #365f82;border-radius:8px;background:#fff;color:var(--accent,#2f5d86);font-size:12.5px;font-weight:700;cursor:pointer;">Salvar</button>
+          <button sc-camel-on-click="{{ imprimirRomaneio }}" style="padding:9px 16px;border:none;border-radius:8px;background:var(--accent,#2f5d86);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;">Imprimir / PDF</button>
+        </div>
+      </div>
+
+      <div class="romaneio-sheet" style="background:#fff;border:1px solid #d6d0c5;border-radius:14px;box-shadow:0 12px 36px rgba(48,43,35,.08);padding:30px;">
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:end;gap:20px;border-bottom:3px solid #211f1b;padding-bottom:16px;">
+          <div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#8a8377;">Fornecedor</div>
+            <div style="font-family:'Barlow Semi Condensed';font-size:17px;font-weight:700;margin-top:5px;">{{ empresa.nome }}</div>
+            <div style="font-size:11.5px;color:#6b655c;line-height:1.45;margin-top:4px;white-space:pre-line;">{{ empresaLinhas }}</div>
+          </div>
+          <div style="font-family:'Barlow Semi Condensed';font-weight:700;font-size:30px;letter-spacing:1px;text-align:center;">ROMANEIO</div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <label style="display:block;width:140px;"><span style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Número</span><input value="{{ romNumero }}" sc-camel-on-input="{{ onRomNumero }}" style="width:100%;margin-top:4px;padding:8px 9px;border:1px solid #d8d2c8;border-radius:6px;font-family:'IBM Plex Mono';font-weight:700;text-align:center;"></label>
+            <label style="display:block;width:130px;"><span style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Data</span><input value="{{ romData }}" sc-camel-on-input="{{ onRomData }}" style="width:100%;margin-top:4px;padding:8px 9px;border:1px solid #d8d2c8;border-radius:6px;text-align:center;"></label>
+          </div>
+        </div>
+
+        <div style="margin-top:18px;border:1px solid #ddd7cd;border-radius:10px;overflow:hidden;">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f4f0e8;border-bottom:1px solid #ddd7cd;">
+            <span style="font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#5f584f;">Entrega / cliente</span>
+            <div class="romaneio-search" style="position:relative;flex:1;max-width:420px;">
+              <input value="{{ romCliSearch }}" sc-camel-on-input="{{ onRomCliSearch }}" placeholder="Buscar cliente cadastrado…" style="width:100%;padding:7px 9px;border:1px solid #d5cec2;border-radius:6px;background:#fff;font-size:12.5px;">
+              <sc-if value="{{ showRomClientResults }}" hint-placeholder-val="{{ false }}">
+                <div style="position:absolute;z-index:15;left:0;right:0;top:36px;background:#fff;border:1px solid #d8d2c8;border-radius:8px;box-shadow:0 10px 25px rgba(0,0,0,.12);overflow:hidden;">
+                  <sc-for list="{{ romClientResults }}" as="c" hint-placeholder-count="3">
+                    <button sc-camel-on-click="{{ c.use }}" style="display:block;width:100%;padding:9px 11px;border:none;border-top:1px solid #f0ece4;background:#fff;text-align:left;cursor:pointer;"><strong style="font-size:12.5px;">{{ c.nome }}</strong><span style="display:block;font-size:11px;color:#8a8377;margin-top:2px;">{{ c.sub }}</span></button>
+                  </sc-for>
+                  <sc-if value="{{ noRomClientResults }}" hint-placeholder-val="{{ false }}"><div style="padding:10px;font-size:12px;color:#9a9388;">Nenhum cliente encontrado.</div></sc-if>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+          <div class="responsive-grid" style="display:grid;grid-template-columns:2fr 1fr 1fr 90px;gap:10px;padding:12px;">
+            <label style="grid-column:span 2;"><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Nome / razão social</span><input value="{{ romCliente.nome }}" sc-camel-on-input="{{ onRomNome }}" style="width:100%;margin-top:3px;padding:7px 8px;border:1px solid #ddd7cd;border-radius:5px;"></label>
+            <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">CNPJ / CPF</span><input value="{{ romCliente.cnpj }}" sc-camel-on-input="{{ onRomCnpj }}" style="width:100%;margin-top:3px;padding:7px 8px;border:1px solid #ddd7cd;border-radius:5px;"></label>
+            <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">REF</span><input value="{{ romCliente.ref }}" sc-camel-on-input="{{ onRomRef }}" style="width:100%;margin-top:3px;padding:7px 8px;border:1px solid #ddd7cd;border-radius:5px;"></label>
+            <label style="grid-column:span 2;"><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Endereço</span><input value="{{ romCliente.endereco }}" sc-camel-on-input="{{ onRomEndereco }}" style="width:100%;margin-top:3px;padding:7px 8px;border:1px solid #ddd7cd;border-radius:5px;"></label>
+            <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Bairro</span><input value="{{ romCliente.bairro }}" sc-camel-on-input="{{ onRomBairro }}" style="width:100%;margin-top:3px;padding:7px 8px;border:1px solid #ddd7cd;border-radius:5px;"></label>
+            <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Contato</span><input value="{{ romCliente.contato }}" sc-camel-on-input="{{ onRomContato }}" style="width:100%;margin-top:3px;padding:7px 8px;border:1px solid #ddd7cd;border-radius:5px;"></label>
+            <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Cidade</span><input value="{{ romCliente.cidade }}" sc-camel-on-input="{{ onRomCidade }}" style="width:100%;margin-top:3px;padding:7px 8px;border:1px solid #ddd7cd;border-radius:5px;"></label>
+            <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">CEP</span><input value="{{ romCliente.cep }}" sc-camel-on-input="{{ onRomCep }}" style="width:100%;margin-top:3px;padding:7px 8px;border:1px solid #ddd7cd;border-radius:5px;"></label>
+            <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">UF</span><input value="{{ romCliente.uf }}" sc-camel-on-input="{{ onRomUf }}" maxlength="2" style="width:100%;margin-top:3px;padding:7px 8px;border:1px solid #ddd7cd;border-radius:5px;text-transform:uppercase;"></label>
+          </div>
+        </div>
+
+        <div class="romaneio-search" style="position:relative;margin-top:18px;">
+          <input value="{{ romSearch }}" sc-camel-on-input="{{ onRomSearch }}" placeholder="Adicionar material por código ou descrição…" style="width:100%;padding:10px 12px;border:1.5px solid #c9c1b5;border-radius:8px;font-size:13px;background:#fbfaf7;">
+          <sc-if value="{{ showRomSearch }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;z-index:14;left:0;right:0;top:43px;background:#fff;border:1px solid #d8d2c8;border-radius:8px;box-shadow:0 10px 28px rgba(0,0,0,.13);overflow:hidden;">
+              <sc-for list="{{ romSearchResults }}" as="r" hint-placeholder-count="4">
+                <div role="button" tabindex="0" sc-camel-on-click="{{ r.add }}" sc-camel-on-key-down="{{ r.onKey }}" style="display:grid;grid-template-columns:64px 1fr 110px 120px;gap:10px;padding:9px 12px;border-top:1px solid #f0ece4;cursor:pointer;align-items:center;"><span style="font-family:'IBM Plex Mono';color:#8a8377;">{{ r.cod }}</span><strong style="font-size:12.5px;">{{ r.desc }}</strong><span style="text-align:right;font-size:11.5px;color:#6b655c;">{{ r.pesoStr }}</span><span style="text-align:right;font-size:11.5px;color:var(--accent,#2f5d86);">{{ r.precoStr }}</span></div>
+              </sc-for>
+              <sc-if value="{{ noRomSearch }}" hint-placeholder-val="{{ false }}"><div style="padding:11px;font-size:12px;color:#9a9388;">Nenhum material encontrado.</div></sc-if>
+            </div>
+          </sc-if>
+        </div>
+
+        <div class="data-table" style="margin-top:10px;border:1px solid #cfc8bc;border-radius:9px;overflow-x:auto;">
+          <div class="data-grid" style="display:grid;grid-template-columns:70px 82px minmax(250px,1fr) 110px 120px 118px 125px 38px;background:#211f1b;color:#fff;padding:10px 11px;font-size:10px;font-weight:700;letter-spacing:.45px;text-transform:uppercase;">
+            <span>Cód.</span><span style="text-align:center;">Qtd.</span><span>Descrição</span><span style="text-align:right;">Peso unit.</span><span style="text-align:right;">Peso total</span><span style="text-align:right;">V. unit.</span><span style="text-align:right;">V. total</span><span></span>
+          </div>
+          <sc-if value="{{ hasRomItens }}" hint-placeholder-val="{{ true }}">
+          <sc-for list="{{ romItens }}" as="r" hint-placeholder-count="5">
+            <div class="data-grid" style="display:grid;grid-template-columns:70px 82px minmax(250px,1fr) 110px 120px 118px 125px 38px;align-items:center;padding:8px 11px;border-top:1px solid #eee9e0;">
+              <span style="font-family:'IBM Plex Mono';font-size:12px;color:#8a8377;">{{ r.cod }}</span>
+              <input value="{{ r.qtd }}" sc-camel-on-input="{{ r.onQtd }}" inputmode="decimal" style="width:66px;text-align:center;padding:6px;border:1px solid #ddd7cd;border-radius:5px;font-family:'IBM Plex Mono';">
+              <input value="{{ r.desc }}" sc-camel-on-input="{{ r.onDesc }}" style="width:100%;padding:6px 7px;border:1px solid transparent;border-radius:5px;background:transparent;">
+              <input value="{{ r.peso }}" sc-camel-on-input="{{ r.onPeso }}" inputmode="decimal" style="width:90px;justify-self:end;text-align:right;padding:6px;border:1px solid #ddd7cd;border-radius:5px;font-family:'IBM Plex Mono';">
+              <span style="text-align:right;font-family:'IBM Plex Mono';font-size:12px;">{{ r.pesoTotalStr }}</span>
+              <input value="{{ r.vunit }}" sc-camel-on-input="{{ r.onVunit }}" inputmode="decimal" style="width:100px;justify-self:end;text-align:right;padding:6px;border:1px solid #ddd7cd;border-radius:5px;font-family:'IBM Plex Mono';">
+              <span style="text-align:right;font-family:'IBM Plex Mono';font-size:12px;font-weight:700;">{{ r.totalStr }}</span>
+              <button data-noprint="" sc-camel-on-click="{{ r.remove }}" aria-label="Remover material" style="width:26px;height:26px;border:none;border-radius:6px;background:#f2ede5;color:#a05a5a;cursor:pointer;">×</button>
+            </div>
+          </sc-for>
+          </sc-if>
+          <sc-if value="{{ noRomItens }}" hint-placeholder-val="{{ false }}"><div style="padding:30px;text-align:center;color:#9a9388;font-size:12.5px;">Busque um material acima para iniciar o romaneio.</div></sc-if>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 330px;gap:24px;margin-top:16px;align-items:start;">
+          <div>
+            <label style="display:block;"><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Observações da entrega</span><textarea value="{{ romObs }}" sc-camel-on-input="{{ onRomObs }}" rows="4" placeholder="Horário, acesso, descarga, responsável…" style="width:100%;margin-top:5px;padding:9px 10px;border:1px solid #ddd7cd;border-radius:7px;resize:vertical;"></textarea></label>
+            <div style="display:grid;grid-template-columns:1fr 150px;gap:12px;margin-top:12px;">
+              <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Nome legível do recebedor</span><input value="{{ romRecebedor }}" sc-camel-on-input="{{ onRomRecebedor }}" style="width:100%;margin-top:5px;padding:9px;border:0;border-bottom:1px solid #777;background:transparent;"></label>
+              <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Data recebimento</span><input value="{{ romRecebimentoData }}" sc-camel-on-input="{{ onRomRecebimentoData }}" style="width:100%;margin-top:5px;padding:9px;border:0;border-bottom:1px solid #777;background:transparent;text-align:center;"></label>
+            </div>
+          </div>
+          <div style="background:#f4f0e8;border-radius:9px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;font-size:12px;">
+            <div style="display:flex;justify-content:space-between;"><span>Quantidade total</span><strong style="font-family:'IBM Plex Mono';">{{ romQuantidadeStr }}</strong></div>
+            <div style="display:flex;justify-content:space-between;"><span>Peso total</span><strong style="font-family:'IBM Plex Mono';">{{ romPesoTotalStr }}</strong></div>
+            <div style="display:flex;justify-content:space-between;border-top:1px solid #d9d1c5;padding-top:8px;"><span>Subtotal</span><strong style="font-family:'IBM Plex Mono';">{{ romSubtotalStr }}</strong></div>
+            <label style="display:flex;justify-content:space-between;align-items:center;gap:10px;"><span>Desconto R$</span><input value="{{ romDesconto }}" sc-camel-on-input="{{ onRomDesconto }}" inputmode="decimal" placeholder="0,00" style="width:100px;text-align:right;padding:5px 7px;border:1px solid #d0c8bc;border-radius:5px;font-family:'IBM Plex Mono';"></label>
+            <label style="display:flex;justify-content:space-between;align-items:center;gap:10px;"><span>Frete R$</span><input value="{{ romFrete }}" sc-camel-on-input="{{ onRomFrete }}" inputmode="decimal" placeholder="0,00" style="width:100px;text-align:right;padding:5px 7px;border:1px solid #d0c8bc;border-radius:5px;font-family:'IBM Plex Mono';"></label>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;border-top:2px solid #211f1b;padding-top:10px;margin-top:2px;"><span style="font-weight:800;text-transform:uppercase;">Total do pedido</span><strong style="font-family:'IBM Plex Mono';font-size:18px;color:var(--accent,#2f5d86);">{{ romTotalStr }}</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="romaneio-history" style="margin-top:22px;">
+        <div style="font-family:'Barlow Semi Condensed';font-size:18px;font-weight:700;margin-bottom:10px;">Romaneios salvos</div>
+        <sc-if value="{{ hasRomHistorico }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:8px;">
+          <sc-for list="{{ romHistRows }}" as="h" hint-placeholder-count="3">
+            <div style="display:grid;grid-template-columns:130px 1fr 110px 130px auto;gap:12px;align-items:center;background:#fff;border:1px solid #ddd7cd;border-radius:9px;padding:11px 14px;">
+              <strong style="font-family:'IBM Plex Mono';color:var(--accent,#2f5d86);">{{ h.numero }}</strong><span style="font-weight:600;">{{ h.cliente }}</span><span style="font-size:12px;color:#8a8377;">{{ h.data }}</span><strong style="font-family:'IBM Plex Mono';text-align:right;">{{ h.totalStr }}</strong>
+              <span style="display:flex;gap:7px;"><button sc-camel-on-click="{{ h.open }}" style="padding:6px 11px;border:none;border-radius:6px;background:var(--accent,#2f5d86);color:#fff;font-size:11.5px;font-weight:600;cursor:pointer;">Abrir</button><button sc-camel-on-click="{{ h.del }}" style="padding:6px 9px;border:1px solid #ddd7cd;border-radius:6px;background:#fff;color:#a05a5a;font-size:11.5px;cursor:pointer;">Excluir</button></span>
+            </div>
+          </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ noRomHistorico }}" hint-placeholder-val="{{ true }}"><div style="padding:24px;border:1px dashed #cfc7ba;border-radius:9px;text-align:center;color:#91897c;font-size:12.5px;">Nenhum romaneio salvo ainda.</div></sc-if>
+      </div>
+    </div>
+    </div>
+    </sc-if>
+
+`;
+  template = replaceOnce(
+    template,
+    `    <!-- ---------- ABA PERFIL ---------- -->`,
+    `${romaneioPage}    <!-- ---------- ABA PERFIL ---------- -->`,
+    'romaneio page',
+  );
+}
 
 bundle = bundle.replace(
   templatePattern,

@@ -63,6 +63,13 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     'data-quantity-total="editor"',
     'data-quantity-position="description"',
     'data-quantity-total="print"',
+    'data-romaneio-page="true"',
+    '>Romaneio</button>',
+    'tccon_romaneios_',
+    'saveRomaneio(){',
+    'importCurrentQuote(){',
+    'romPesoTotalStr',
+    'imprimirRomaneio',
   ];
   for (const marker of requiredTemplateMarkers) {
     if (!template.includes(marker)) throw new Error(`Frontend marker is missing: ${marker}`);
