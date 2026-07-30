@@ -1147,12 +1147,23 @@ if (!template.includes('  sendQuoteEmail(){')) {
   );
 }
 
-template = replaceOnce(
-  template,
-  `verImpressao:()=>this.setState({view:'print'}), voltar:()=>this.setState({view:'editor'}), imprimir:()=>window.print(),`,
-  `verImpressao:()=>this.setState({view:'print'}), voltar:()=>this.setState({view:'editor'}), imprimir:()=>window.print(), salvarPdf:()=>this.savePdf(), enviarEmail:()=>this.sendQuoteEmail(),`,
-  'PDF save action',
-);
+const basicPrintActions = `verImpressao:()=>this.setState({view:'print'}), voltar:()=>this.setState({view:'editor'}), imprimir:()=>window.print(),`;
+const pdfPrintActions = `${basicPrintActions} salvarPdf:()=>this.savePdf(),`;
+const emailPrintActions = `${pdfPrintActions} enviarEmail:()=>this.sendQuoteEmail(),`;
+const duplicatedPdfPrintActions = `${emailPrintActions} salvarPdf:()=>this.savePdf(),`;
+if (template.includes(duplicatedPdfPrintActions)) {
+  if (template.indexOf(duplicatedPdfPrintActions, template.indexOf(duplicatedPdfPrintActions) + 1) >= 0) {
+    throw new Error('Patch target is ambiguous: remove duplicate PDF action');
+  }
+  template = template.replace(duplicatedPdfPrintActions, emailPrintActions);
+} else if (!template.includes(emailPrintActions)) {
+  template = replaceOnce(
+    template,
+    template.includes(pdfPrintActions) ? pdfPrintActions : basicPrintActions,
+    emailPrintActions,
+    'PDF and email actions',
+  );
+}
 
 template = replaceOnce(
   template,
@@ -2056,6 +2067,84 @@ if (template.includes(legacyReceiptInsideSummary)) {
     'remove duplicate receipt fields above romaneio footer',
   );
 }
+
+if (!template.includes('clienteBuscaAberta:false')) {
+  template = replaceOnce(
+    template,
+    `    view:'editor', search:'',
+    cliente:{nome:'',cnpj:'',endereco:'',contato:''},`,
+    `    view:'editor', search:'', clienteBuscaAberta:false,
+    cliente:{nome:'',cnpj:'',endereco:'',contato:''},`,
+    'client name suggestion state',
+  );
+}
+
+if (!template.includes('  setClientName(v){')) {
+  template = replaceOnce(
+    template,
+    `  setCli(f,v){ this.setState(s=>({cliente:{...s.cliente,[f]:v}})); }`,
+    `  setCli(f,v){ this.setState(s=>({cliente:{...s.cliente,[f]:v}})); }
+  setClientName(v){ this.setState(s=>({cliente:{...s.cliente,nome:v},clienteBuscaAberta:!!String(v||'').trim()})); }`,
+    'client name suggestion input',
+  );
+}
+
+template = replaceOnce(
+  template,
+  `    this.setState({view:'editor',cliente:{nome:c.nome||'',cnpj:c.cnpj||'',contato:c.fone||'',endereco:[c.endereco,c.bairro,c.cidade&&(c.cidade+(c.uf?'/'+c.uf:''))].filter(Boolean).join(', ')}});`,
+  `    this.setState({view:'editor',clienteBuscaAberta:false,cliente:{nome:c.nome||'',cnpj:c.cnpj||'',contato:c.fone||'',endereco:[c.endereco,c.bairro,c.cidade&&(c.cidade+(c.uf?'/'+c.uf:''))].filter(Boolean).join(', ')}});`,
+  'close client suggestions after selection',
+);
+
+if (!template.includes('const clienteSugestoes=clientePrefixo?')) {
+  template = replaceOnce(
+    template,
+    `    const cq=s.cliSearch.trim().toLowerCase();`,
+    `    const normalizarNome=valor=>String(valor||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').trim().toLocaleLowerCase('pt-BR');
+    const clientePrefixo=normalizarNome(s.cliente.nome);
+    const clienteSugestoes=clientePrefixo?s.clientes
+      .filter(c=>normalizarNome(c.nome).startsWith(clientePrefixo))
+      .sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'))
+      .map(c=>({nome:c.nome||'Sem nome',detalhe:[c.cidade,c.uf,c.fone].filter(Boolean).join(' · ')||'Clique para selecionar',select:()=>this.useClient(c)})):[];
+    const showClienteSugestoes=s.clienteBuscaAberta&&clientePrefixo.length>0;
+    const noClienteSugestoes=showClienteSugestoes&&clienteSugestoes.length===0;
+
+    const cq=s.cliSearch.trim().toLowerCase();`,
+    'client prefix suggestions',
+  );
+}
+
+template = replaceOnce(
+  template,
+  `      cliente:s.cliente, onNome:e=>this.setCli('nome',e.target.value), onCnpj:e=>this.setCli('cnpj',e.target.value), onEndereco:e=>this.setCli('endereco',e.target.value), onContato:e=>this.setCli('contato',e.target.value),`,
+  `      cliente:s.cliente, clienteSugestoes, showClienteSugestoes, noClienteSugestoes,
+      onNome:e=>this.setClientName(e.target.value),
+      onNomeFocus:()=>this.setState({clienteBuscaAberta:!!String(s.cliente.nome||'').trim()}),
+      onNomeBlur:()=>setTimeout(()=>this.setState({clienteBuscaAberta:false}),180),
+      onCnpj:e=>this.setCli('cnpj',e.target.value), onEndereco:e=>this.setCli('endereco',e.target.value), onContato:e=>this.setCli('contato',e.target.value),`,
+  'client name suggestion actions',
+);
+
+template = replaceOnce(
+  template,
+  `<label style="display:block;"><span style="font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:#8a8377;">Nome / Razão social</span>
+            <input value="{{ cliente.nome }}" sc-camel-on-input="{{ onNome }}" placeholder="Nome do cliente" style="width:100%;margin-top:5px;padding:9px 11px;border:1px solid #d8d2c8;border-radius:7px;font-size:14px;"></label>`,
+  `<label style="display:block;position:relative;"><span style="font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:#8a8377;">Nome / Razão social</span>
+            <input value="{{ cliente.nome }}" sc-camel-on-input="{{ onNome }}" sc-camel-on-focus="{{ onNomeFocus }}" sc-camel-on-blur="{{ onNomeBlur }}" autocomplete="off" aria-autocomplete="list" aria-expanded="{{ showClienteSugestoes }}" placeholder="Digite o início do nome" style="width:100%;margin-top:5px;padding:9px 11px;border:1px solid #d8d2c8;border-radius:7px;font-size:14px;">
+            <sc-if value="{{ showClienteSugestoes }}" hint-placeholder-val="{{ false }}">
+              <div role="listbox" aria-label="Clientes que começam com o texto digitado" style="position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;background:#fff;border:1px solid #d8d2c8;border-radius:9px;box-shadow:0 12px 30px rgba(0,0,0,.14);max-height:300px;overflow-y:auto;">
+                <sc-for list="{{ clienteSugestoes }}" as="c" hint-placeholder-count="6">
+                  <button type="button" role="option" sc-camel-on-click="{{ c.select }}" style="display:block;width:100%;padding:10px 12px;border:0;border-bottom:1px solid #f0ece4;background:#fff;text-align:left;cursor:pointer;" style-hover="background:#eef3f8;">
+                    <span style="display:block;font-size:13.5px;font-weight:600;color:#2c2924;">{{ c.nome }}</span>
+                    <span style="display:block;margin-top:2px;font-size:11.5px;color:#8a8377;">{{ c.detalhe }}</span>
+                  </button>
+                </sc-for>
+                <sc-if value="{{ noClienteSugestoes }}" hint-placeholder-val="{{ false }}"><div style="padding:13px;text-align:center;color:#8a8377;font-size:13px;">Nenhum cliente começa com esse texto.</div></sc-if>
+              </div>
+            </sc-if>
+          </label>`,
+  'client name suggestion list',
+);
 
 bundle = bundle.replace(
   templatePattern,

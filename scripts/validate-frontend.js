@@ -59,6 +59,13 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     "enviarEmail:()=>this.sendQuoteEmail()",
     "'mailto:?subject='",
     'TCCON ARTEFATOS DE CONCRETO.',
+    'clienteBuscaAberta:false',
+    'setClientName(v){',
+    'startsWith(clientePrefixo)',
+    'clienteSugestoes, showClienteSugestoes, noClienteSugestoes',
+    'role="listbox"',
+    'Digite o início do nome',
+    'Nenhum cliente começa com esse texto.',
     'font-weight:700;font-size:20px;color:var(--accent,#2f5d86);">{{ margemVendaStr }}',
     'placeholder="0 ou 10%"',
     "descontoTexto.includes('%')",
@@ -114,6 +121,9 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
   }
   if (template.includes('>Fornecedor</div>')) {
     throw new Error('The romaneio still exposes company data in its header');
+  }
+  if (template.includes('enviarEmail:()=>this.sendQuoteEmail(), salvarPdf:()=>this.savePdf(),')) {
+    throw new Error('The quote actions contain a duplicate PDF handler');
   }
 
   const scripts = Object.values(manifest).filter((resource) =>
