@@ -26,6 +26,8 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     'class="data-table"',
     'role="status" aria-live="polite"',
     '__tccon_pending_sync',
+    'mergePendingUsers(remote,local)',
+    "k==='tccon_users'&&Object.hasOwn(pending,k)",
     'startRealtime',
     "new EventSource(this.apiBase()+'/events')",
     'refreshKey(k)',
@@ -49,8 +51,14 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     'componentDidUpdate(prevProps,prevState)',
     "window.addEventListener('beforeunload'",
     '>Salvar em PDF</button>',
-    "document.title='Orcamento-'+numero",
+    "cliente+' - orçamento '+numero",
     'salvarPdf:()=>this.savePdf()',
+    '>Enviar por e-mail</button>',
+    'title="O PDF deve ser anexado manualmente"',
+    'sendQuoteEmail(){',
+    "enviarEmail:()=>this.sendQuoteEmail()",
+    "'mailto:?subject='",
+    'TCCON ARTEFATOS DE CONCRETO.',
     'font-weight:700;font-size:20px;color:var(--accent,#2f5d86);">{{ margemVendaStr }}',
     'placeholder="0 ou 10%"',
     "descontoTexto.includes('%')",
@@ -70,9 +78,25 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     'importCurrentQuote(){',
     'romPesoTotalStr',
     'imprimirRomaneio',
+    "pageStyle.textContent='@page{size:A4 portrait;margin:5mm;}'",
+    'zoom:1;width:100%',
+    'grid-template-columns:42px 44px minmax(180px,1fr) 68px 74px 68px 76px 0',
+    'romaneio-client-grid',
+    'romaneio-summary-grid',
+    'romFornecedor:{nome:',
+    'toggleTcconFornecedor(){',
+    'tccon-romaneio-logo',
+    'tccon-romaneio-button-logo',
+    'romaneio-supplier-grid',
+    '>Fornecedor</span>',
+    'class="romaneio-receipt"',
+    'Assinatura / nome legÃ­vel de quem recebeu',
   ];
   for (const marker of requiredTemplateMarkers) {
     if (!template.includes(marker)) throw new Error(`Frontend marker is missing: ${marker}`);
+  }
+  if (template.includes('>Nome legÃ­vel do recebedor</span>')) {
+    throw new Error('Duplicate romaneio receipt fields remain above the footer');
   }
   for (const marker of ['async checkAppVersion', 'startVersionPolling(){', 'async bootstrapApp']) {
     if (template.split(marker).length !== 2) {
@@ -87,6 +111,9 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
   }
   if (template.includes('u.senha=senha')) {
     throw new Error('The frontend still stores new passwords in plaintext');
+  }
+  if (template.includes('>Fornecedor</div>')) {
+    throw new Error('The romaneio still exposes company data in its header');
   }
 
   const scripts = Object.values(manifest).filter((resource) =>

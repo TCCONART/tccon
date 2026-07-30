@@ -517,6 +517,15 @@ const oldSync = `  async pullFromServer(){
   }`;
 const newSync = `  pendingGet(){ try{return JSON.parse(localStorage.getItem('__tccon_pending_sync')||'{}');}catch(e){return{};} }
   pendingSet(value){ try{localStorage.setItem('__tccon_pending_sync',JSON.stringify(value));}catch(e){} }
+  mergePendingUsers(remote,local){
+    if(!Array.isArray(remote))return Array.isArray(local)?local:[];
+    if(!Array.isArray(local))return remote;
+    const localById=new Map(local.filter(u=>u&&u.id).map(u=>[u.id,u]));
+    const seen=new Set();
+    const merged=remote.map(u=>{seen.add(u.id);const pending=localById.get(u.id);return pending?{...u,...pending,id:u.id}:u;});
+    local.forEach(u=>{if(u&&u.id&&!seen.has(u.id)){merged.push(u);seen.add(u.id);}});
+    return merged;
+  }
   async pullFromServer(){
     const pending=this.pendingGet();
     try{
@@ -524,7 +533,19 @@ const newSync = `  pendingGet(){ try{return JSON.parse(localStorage.getItem('__t
       if(!r.ok) return false;
       const data=await r.json();
       if(data && data.keys){
-        Object.entries(data.keys).forEach(([k,v])=>{ if(Object.hasOwn(pending,k))return; try{ localStorage.setItem(k, typeof v==='string'?v:JSON.stringify(v)); }catch(e){} });
+        let pendingChanged=false;
+        Object.entries(data.keys).forEach(([k,v])=>{
+          if(k==='tccon_users'&&Object.hasOwn(pending,k)){
+            let remote=v;try{if(typeof remote==='string')remote=JSON.parse(remote);}catch(e){}
+            const merged=this.mergePendingUsers(remote,pending[k]);
+            pending[k]=merged;pendingChanged=true;
+            try{localStorage.setItem(k,JSON.stringify(merged));}catch(e){}
+            return;
+          }
+          if(Object.hasOwn(pending,k))return;
+          try{localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));}catch(e){}
+        });
+        if(pendingChanged)this.pendingSet(pending);
         this._serverUp=true;
         await this.flushPending();
         return true;
@@ -563,6 +584,66 @@ if (template.includes(oldSync)) {
     '',
   );
   template = replaceOnce(template, priorSync, newSync, 'synchronization queue race');
+}
+
+if (!template.includes('  mergePendingUsers(remote,local){')) {
+  template = replaceOnce(
+    template,
+    `  pendingSet(value){ try{localStorage.setItem('__tccon_pending_sync',JSON.stringify(value));}catch(e){} }
+  async pullFromServer(){
+    const pending=this.pendingGet();
+    try{
+      const r=await fetch(this.apiBase()+'/store',{cache:'no-store'});
+      if(!r.ok) return false;
+      const data=await r.json();
+      if(data && data.keys){
+        Object.entries(data.keys).forEach(([k,v])=>{ if(Object.hasOwn(pending,k))return; try{ localStorage.setItem(k, typeof v==='string'?v:JSON.stringify(v)); }catch(e){} });
+        this._serverUp=true;
+        await this.flushPending();
+        return true;
+      }
+    }catch(e){}
+    return false;
+  }`,
+    `  pendingSet(value){ try{localStorage.setItem('__tccon_pending_sync',JSON.stringify(value));}catch(e){} }
+  mergePendingUsers(remote,local){
+    if(!Array.isArray(remote))return Array.isArray(local)?local:[];
+    if(!Array.isArray(local))return remote;
+    const localById=new Map(local.filter(u=>u&&u.id).map(u=>[u.id,u]));
+    const seen=new Set();
+    const merged=remote.map(u=>{seen.add(u.id);const pending=localById.get(u.id);return pending?{...u,...pending,id:u.id}:u;});
+    local.forEach(u=>{if(u&&u.id&&!seen.has(u.id)){merged.push(u);seen.add(u.id);}});
+    return merged;
+  }
+  async pullFromServer(){
+    const pending=this.pendingGet();
+    try{
+      const r=await fetch(this.apiBase()+'/store',{cache:'no-store'});
+      if(!r.ok) return false;
+      const data=await r.json();
+      if(data && data.keys){
+        let pendingChanged=false;
+        Object.entries(data.keys).forEach(([k,v])=>{
+          if(k==='tccon_users'&&Object.hasOwn(pending,k)){
+            let remote=v;try{if(typeof remote==='string')remote=JSON.parse(remote);}catch(e){}
+            const merged=this.mergePendingUsers(remote,pending[k]);
+            pending[k]=merged;pendingChanged=true;
+            try{localStorage.setItem(k,JSON.stringify(merged));}catch(e){}
+            return;
+          }
+          if(Object.hasOwn(pending,k))return;
+          try{localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));}catch(e){}
+        });
+        if(pendingChanged)this.pendingSet(pending);
+        this._serverUp=true;
+        await this.flushPending();
+        return true;
+      }
+    }catch(e){}
+    return false;
+  }`,
+    'merge pending user profiles with server registry',
+  );
 }
 
 template = replaceOnce(
@@ -969,21 +1050,55 @@ template = replaceOnce(
   'save draft before profile logout',
 );
 
+if (!template.includes('sc-camel-on-click="{{ salvarPdf }}"')) {
+  template = replaceOnce(
+    template,
+    `<button sc-camel-on-click="{{ imprimir }}" style="padding:8px 18px;border:none;border-radius:7px;background:var(--accent,#2f5d86);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Imprimir / Salvar PDF</button>`,
+    `<div style="display:flex;align-items:center;gap:8px;">
+            <button sc-camel-on-click="{{ imprimir }}" style="padding:8px 18px;border:1px solid #5a554d;border-radius:7px;background:#fff;color:#2c2924;font-size:13px;font-weight:600;cursor:pointer;">Imprimir</button>
+            <button sc-camel-on-click="{{ salvarPdf }}" style="padding:8px 18px;border:none;border-radius:7px;background:var(--accent,#2f5d86);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Salvar em PDF</button>
+          </div>`,
+    'separate print and PDF buttons',
+  );
+}
+
 template = replaceOnce(
   template,
-  `<button sc-camel-on-click="{{ imprimir }}" style="padding:8px 18px;border:none;border-radius:7px;background:var(--accent,#2f5d86);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Imprimir / Salvar PDF</button>`,
   `<div style="display:flex;align-items:center;gap:8px;">
           <button sc-camel-on-click="{{ imprimir }}" style="padding:8px 18px;border:1px solid #5a554d;border-radius:7px;background:#fff;color:#2c2924;font-size:13px;font-weight:600;cursor:pointer;">Imprimir</button>
           <button sc-camel-on-click="{{ salvarPdf }}" style="padding:8px 18px;border:none;border-radius:7px;background:var(--accent,#2f5d86);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Salvar em PDF</button>
         </div>`,
-  'separate print and PDF buttons',
+  `<div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
+          <button sc-camel-on-click="{{ imprimir }}" style="padding:8px 18px;border:1px solid #5a554d;border-radius:7px;background:#fff;color:#2c2924;font-size:13px;font-weight:600;cursor:pointer;">Imprimir</button>
+          <button sc-camel-on-click="{{ salvarPdf }}" style="padding:8px 18px;border:none;border-radius:7px;background:var(--accent,#2f5d86);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Salvar em PDF</button>
+          <button title="O PDF deve ser anexado manualmente" sc-camel-on-click="{{ enviarEmail }}" style="padding:8px 18px;border:1px solid var(--accent,#2f5d86);border-radius:7px;background:#fff;color:var(--accent,#2f5d86);font-size:13px;font-weight:600;cursor:pointer;">Enviar por e-mail</button>
+        </div>`,
+  'quote email button',
 );
 
-template = replaceOnce(
-  template,
-  `  saveQuote(){
+if (!template.includes('  savePdf(){')) {
+  template = replaceOnce(
+    template,
+    `  saveQuote(){
     const s=this.state;`,
-  `  savePdf(){
+    `  savePdf(){
+    const oldTitle=document.title;
+    const limpar=valor=>String(valor||'').replace(/[<>:"/\\\\|?*\\u0000-\\u001F]/g,' ').replace(/\\s+/g,' ').trim();
+    const numero=limpar(this.state.numero)||'sem número';
+    const cliente=limpar(this.state.cliente&&this.state.cliente.nome);
+    const restore=()=>{document.title=oldTitle;window.removeEventListener('afterprint',restore);};
+    document.title=cliente?(cliente+' - orçamento '+numero):('Orçamento '+numero);
+    window.addEventListener('afterprint',restore);
+    setTimeout(()=>window.print(),0);
+    setTimeout(restore,60000);
+  }
+  saveQuote(){
+    const s=this.state;`,
+    'PDF filename from quote and client',
+  );
+}
+
+const oldQuotePdfTitle = `  savePdf(){
     const oldTitle=document.title;
     const numero=String(this.state.numero||'orcamento').trim().replace(/[^a-zA-Z0-9_-]+/g,'-');
     const restore=()=>{document.title=oldTitle;window.removeEventListener('afterprint',restore);};
@@ -991,16 +1106,51 @@ template = replaceOnce(
     window.addEventListener('afterprint',restore);
     setTimeout(()=>window.print(),0);
     setTimeout(restore,60000);
+  }`;
+const clientQuotePdfTitle = `  savePdf(){
+    const oldTitle=document.title;
+    const limpar=valor=>String(valor||'').replace(/[<>:"/\\\\|?*\\u0000-\\u001F]/g,' ').replace(/\\s+/g,' ').trim();
+    const numero=limpar(this.state.numero)||'sem número';
+    const cliente=limpar(this.state.cliente&&this.state.cliente.nome);
+    const restore=()=>{document.title=oldTitle;window.removeEventListener('afterprint',restore);};
+    document.title=cliente?(cliente+' - orçamento '+numero):('Orçamento '+numero);
+    window.addEventListener('afterprint',restore);
+    setTimeout(()=>window.print(),0);
+    setTimeout(restore,60000);
+  }`;
+if (template.includes(oldQuotePdfTitle)) {
+  template = replaceOnce(
+    template,
+    oldQuotePdfTitle,
+    clientQuotePdfTitle,
+    'include client in PDF filename',
+  );
+}
+
+if (!template.includes('  sendQuoteEmail(){')) {
+  template = replaceOnce(
+    template,
+    `  saveQuote(){
+    const s=this.state;`,
+    `  sendQuoteEmail(){
+    const limpar=valor=>String(valor||'').replace(/[\\r\\n]+/g,' ').replace(/\\s+/g,' ').trim();
+    const nome=limpar(this.state.cliente&&this.state.cliente.nome);
+    const numero=limpar(this.state.numero);
+    const identificacao=[nome,numero&&('N\u00ba '+numero)].filter(Boolean).join(' - ');
+    const assunto='OR\u00c7AMENTO'+(identificacao?' '+identificacao:'')+' - TCCON ARTEFATOS DE CONCRETO.';
+    const corpo='Prezados(as),\\n\\nCordiais sauda\u00e7\u00f5es,\\n\\nSegue o or\u00e7amento conforme solicitado!\\n\\nQualquer d\u00favida, nos contate!\\n\\nAtenciosamente,';
+    window.location.href='mailto:?subject='+encodeURIComponent(assunto)+'&body='+encodeURIComponent(corpo);
   }
   saveQuote(){
     const s=this.state;`,
-  'PDF filename from quote number',
-);
+    'prefilled quote email',
+  );
+}
 
 template = replaceOnce(
   template,
   `verImpressao:()=>this.setState({view:'print'}), voltar:()=>this.setState({view:'editor'}), imprimir:()=>window.print(),`,
-  `verImpressao:()=>this.setState({view:'print'}), voltar:()=>this.setState({view:'editor'}), imprimir:()=>window.print(), salvarPdf:()=>this.savePdf(),`,
+  `verImpressao:()=>this.setState({view:'print'}), voltar:()=>this.setState({view:'editor'}), imprimir:()=>window.print(), salvarPdf:()=>this.savePdf(), enviarEmail:()=>this.sendQuoteEmail(),`,
   'PDF save action',
 );
 
@@ -1122,10 +1272,23 @@ if (!template.includes('data-romaneio-page="true"')) {
     body.printing-romaneio .romaneio-controls,
     body.printing-romaneio .romaneio-history,
     body.printing-romaneio .romaneio-search{display:none !important;}
-    body.printing-romaneio .app-page{padding:0 !important;background:#fff !important;}
-    body.printing-romaneio .romaneio-sheet{border:none !important;box-shadow:none !important;border-radius:0 !important;margin:0 !important;max-width:none !important;}
+    body.printing-romaneio .app-page{padding:0 !important;background:#fff !important;overflow:visible !important;}
+    body.printing-romaneio .romaneio-sheet{
+      border:none !important;box-shadow:none !important;border-radius:0 !important;margin:0 !important;max-width:none !important;padding:14px !important;
+      zoom:1;width:100% !important;font-size:11px !important;
+      break-inside:avoid-page !important;page-break-inside:avoid !important;
+    }
+    body.printing-romaneio .romaneio-client-grid{grid-template-columns:2fr 1fr 1fr 90px !important;gap:6px !important;padding:7px !important;}
+    body.printing-romaneio .romaneio-summary-grid{gap:12px !important;margin-top:8px !important;}
+    body.printing-romaneio .romaneio-sheet .data-table{overflow:visible !important;}
+    body.printing-romaneio .romaneio-sheet .data-grid{
+      grid-template-columns:42px 44px minmax(180px,1fr) 68px 74px 68px 76px 0 !important;
+      min-width:0 !important;padding:4px 6px !important;break-inside:avoid !important;page-break-inside:avoid !important;
+    }
+    body.printing-romaneio .romaneio-sheet .data-grid input{width:100% !important;min-width:0 !important;box-sizing:border-box !important;}
     body.printing-romaneio .romaneio-sheet input,
-    body.printing-romaneio .romaneio-sheet textarea{border-color:transparent !important;background:transparent !important;}
+    body.printing-romaneio .romaneio-sheet textarea{border-color:transparent !important;background:transparent !important;padding:3px 5px !important;font-size:11px !important;}
+    body.printing-romaneio .romaneio-sheet textarea{height:30px !important;min-height:30px !important;resize:none !important;}
   }`,
     'romaneio print styles',
   );
@@ -1289,11 +1452,20 @@ if (!template.includes('data-romaneio-page="true"')) {
   printRomaneio(){
     const oldTitle=document.title;
     const numero=String(this.state.romNumero||'romaneio').trim().replace(/[^a-zA-Z0-9_-]+/g,'-');
-    const restore=()=>{document.title=oldTitle;document.body.classList.remove('printing-romaneio');window.removeEventListener('afterprint',restore);};
+    const pageStyle=document.createElement('style');
+    pageStyle.id='romaneio-print-page';
+    pageStyle.textContent='@page{size:A4 portrait;margin:5mm;}';
+    document.head.appendChild(pageStyle);
+    const restore=()=>{
+      document.title=oldTitle;
+      document.body.classList.remove('printing-romaneio');
+      if(pageStyle.parentNode)pageStyle.parentNode.removeChild(pageStyle);
+      window.removeEventListener('afterprint',restore);
+    };
     document.title='Romaneio-'+numero;
     document.body.classList.add('printing-romaneio');
     window.addEventListener('afterprint',restore);
-    setTimeout(()=>window.print(),0);
+    setTimeout(()=>window.print(),80);
     setTimeout(restore,60000);
   }
 
@@ -1421,11 +1593,7 @@ if (!template.includes('data-romaneio-page="true"')) {
 
       <div class="romaneio-sheet" style="background:#fff;border:1px solid #d6d0c5;border-radius:14px;box-shadow:0 12px 36px rgba(48,43,35,.08);padding:30px;">
         <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:end;gap:20px;border-bottom:3px solid #211f1b;padding-bottom:16px;">
-          <div>
-            <div style="font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#8a8377;">Fornecedor</div>
-            <div style="font-family:'Barlow Semi Condensed';font-size:17px;font-weight:700;margin-top:5px;">{{ empresa.nome }}</div>
-            <div style="font-size:11.5px;color:#6b655c;line-height:1.45;margin-top:4px;white-space:pre-line;">{{ empresaLinhas }}</div>
-          </div>
+          <div></div>
           <div style="font-family:'Barlow Semi Condensed';font-weight:700;font-size:30px;letter-spacing:1px;text-align:center;">ROMANEIO</div>
           <div style="display:flex;gap:10px;justify-content:flex-end;">
             <label style="display:block;width:140px;"><span style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Número</span><input value="{{ romNumero }}" sc-camel-on-input="{{ onRomNumero }}" style="width:100%;margin-top:4px;padding:8px 9px;border:1px solid #d8d2c8;border-radius:6px;font-family:'IBM Plex Mono';font-weight:700;text-align:center;"></label>
@@ -1448,7 +1616,7 @@ if (!template.includes('data-romaneio-page="true"')) {
               </sc-if>
             </div>
           </div>
-          <div class="responsive-grid" style="display:grid;grid-template-columns:2fr 1fr 1fr 90px;gap:10px;padding:12px;">
+          <div class="responsive-grid romaneio-client-grid" style="display:grid;grid-template-columns:2fr 1fr 1fr 90px;gap:10px;padding:12px;">
             <label style="grid-column:span 2;"><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Nome / razão social</span><input value="{{ romCliente.nome }}" sc-camel-on-input="{{ onRomNome }}" style="width:100%;margin-top:3px;padding:7px 8px;border:1px solid #ddd7cd;border-radius:5px;"></label>
             <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">CNPJ / CPF</span><input value="{{ romCliente.cnpj }}" sc-camel-on-input="{{ onRomCnpj }}" style="width:100%;margin-top:3px;padding:7px 8px;border:1px solid #ddd7cd;border-radius:5px;"></label>
             <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">REF</span><input value="{{ romCliente.ref }}" sc-camel-on-input="{{ onRomRef }}" style="width:100%;margin-top:3px;padding:7px 8px;border:1px solid #ddd7cd;border-radius:5px;"></label>
@@ -1494,7 +1662,7 @@ if (!template.includes('data-romaneio-page="true"')) {
           <sc-if value="{{ noRomItens }}" hint-placeholder-val="{{ false }}"><div style="padding:30px;text-align:center;color:#9a9388;font-size:12.5px;">Busque um material acima para iniciar o romaneio.</div></sc-if>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 330px;gap:24px;margin-top:16px;align-items:start;">
+        <div class="romaneio-summary-grid" style="display:grid;grid-template-columns:1fr 330px;gap:24px;margin-top:16px;align-items:start;">
           <div>
             <label style="display:block;"><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Observações da entrega</span><textarea value="{{ romObs }}" sc-camel-on-input="{{ onRomObs }}" rows="4" placeholder="Horário, acesso, descarga, responsável…" style="width:100%;margin-top:5px;padding:9px 10px;border:1px solid #ddd7cd;border-radius:7px;resize:vertical;"></textarea></label>
             <div style="display:grid;grid-template-columns:1fr 150px;gap:12px;margin-top:12px;">
@@ -1537,6 +1705,355 @@ if (!template.includes('data-romaneio-page="true"')) {
     `    <!-- ---------- ABA PERFIL ---------- -->`,
     `${romaneioPage}    <!-- ---------- ABA PERFIL ---------- -->`,
     'romaneio page',
+  );
+}
+
+const romaneioCompanyHeader = `          <div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#8a8377;">Fornecedor</div>
+            <div style="font-family:'Barlow Semi Condensed';font-size:17px;font-weight:700;margin-top:5px;">{{ empresa.nome }}</div>
+            <div style="font-size:11.5px;color:#6b655c;line-height:1.45;margin-top:4px;white-space:pre-line;">{{ empresaLinhas }}</div>
+          </div>`;
+if (template.includes(romaneioCompanyHeader)) {
+  template = replaceOnce(
+    template,
+    romaneioCompanyHeader,
+    '          <div></div>',
+    'blank romaneio company header',
+  );
+}
+
+const oldRomaneioPrintCss = `    body.printing-romaneio .app-page{padding:0 !important;background:#fff !important;}
+    body.printing-romaneio .romaneio-sheet{border:none !important;box-shadow:none !important;border-radius:0 !important;margin:0 !important;max-width:none !important;}
+    body.printing-romaneio .romaneio-sheet input,
+    body.printing-romaneio .romaneio-sheet textarea{border-color:transparent !important;background:transparent !important;}`;
+const fittedRomaneioPrintCss = `    body.printing-romaneio .app-page{padding:0 !important;background:#fff !important;overflow:visible !important;}
+    body.printing-romaneio .romaneio-sheet{
+      border:none !important;box-shadow:none !important;border-radius:0 !important;margin:0 !important;max-width:none !important;
+      zoom:var(--rom-print-scale,.65);width:var(--rom-print-width,153.85%) !important;
+      break-inside:avoid-page !important;page-break-inside:avoid !important;
+    }
+    body.printing-romaneio .romaneio-sheet .data-grid{break-inside:avoid !important;page-break-inside:avoid !important;}
+    body.printing-romaneio .romaneio-sheet input,
+    body.printing-romaneio .romaneio-sheet textarea{border-color:transparent !important;background:transparent !important;}
+    body.printing-romaneio .romaneio-sheet textarea{height:38px !important;min-height:38px !important;resize:none !important;}`;
+if (template.includes(oldRomaneioPrintCss)) {
+  template = replaceOnce(
+    template,
+    oldRomaneioPrintCss,
+    fittedRomaneioPrintCss,
+    'single-page romaneio print styles',
+  );
+}
+
+const oldPrintRomaneioMethod = `  printRomaneio(){
+    const oldTitle=document.title;
+    const numero=String(this.state.romNumero||'romaneio').trim().replace(/[^a-zA-Z0-9_-]+/g,'-');
+    const restore=()=>{document.title=oldTitle;document.body.classList.remove('printing-romaneio');window.removeEventListener('afterprint',restore);};
+    document.title='Romaneio-'+numero;
+    document.body.classList.add('printing-romaneio');
+    window.addEventListener('afterprint',restore);
+    setTimeout(()=>window.print(),0);
+    setTimeout(restore,60000);
+  }`;
+const fittedPrintRomaneioMethod = `  printRomaneio(){
+    const oldTitle=document.title;
+    const numero=String(this.state.romNumero||'romaneio').trim().replace(/[^a-zA-Z0-9_-]+/g,'-');
+    const sheet=document.querySelector('.romaneio-sheet');
+    const scale=sheet?Math.max(.38,Math.min(.82,720/Math.max(1,sheet.scrollWidth),1020/Math.max(1,sheet.scrollHeight))):.65;
+    if(sheet){
+      sheet.style.setProperty('--rom-print-scale',String(scale));
+      sheet.style.setProperty('--rom-print-width',(100/scale)+'%');
+    }
+    const pageStyle=document.createElement('style');
+    pageStyle.id='romaneio-print-page';
+    pageStyle.textContent='@page{size:A4 portrait;margin:7mm;}';
+    document.head.appendChild(pageStyle);
+    const restore=()=>{
+      document.title=oldTitle;
+      document.body.classList.remove('printing-romaneio');
+      if(sheet){sheet.style.removeProperty('--rom-print-scale');sheet.style.removeProperty('--rom-print-width');}
+      if(pageStyle.parentNode)pageStyle.parentNode.removeChild(pageStyle);
+      window.removeEventListener('afterprint',restore);
+    };
+    document.title='Romaneio-'+numero;
+    document.body.classList.add('printing-romaneio');
+    window.addEventListener('afterprint',restore);
+    setTimeout(()=>window.print(),80);
+    setTimeout(restore,60000);
+  }`;
+if (template.includes(oldPrintRomaneioMethod)) {
+  template = replaceOnce(
+    template,
+    oldPrintRomaneioMethod,
+    fittedPrintRomaneioMethod,
+    'single-page romaneio print scaling',
+  );
+}
+
+const balancedRomaneioPrintCss = `    body.printing-romaneio .app-page{padding:0 !important;background:#fff !important;overflow:visible !important;}
+    body.printing-romaneio .romaneio-sheet{
+      border:none !important;box-shadow:none !important;border-radius:0 !important;margin:0 !important;max-width:none !important;padding:14px !important;
+      zoom:.9;width:111.111% !important;font-size:10px !important;
+      break-inside:avoid-page !important;page-break-inside:avoid !important;
+    }
+    body.printing-romaneio .romaneio-client-grid{grid-template-columns:2fr 1fr 1fr 90px !important;gap:6px !important;padding:7px !important;}
+    body.printing-romaneio .romaneio-summary-grid{gap:12px !important;margin-top:8px !important;}
+    body.printing-romaneio .romaneio-sheet .data-grid{padding:4px 8px !important;break-inside:avoid !important;page-break-inside:avoid !important;}
+    body.printing-romaneio .romaneio-sheet input,
+    body.printing-romaneio .romaneio-sheet textarea{border-color:transparent !important;background:transparent !important;padding:3px 5px !important;font-size:10px !important;}
+    body.printing-romaneio .romaneio-sheet textarea{height:30px !important;min-height:30px !important;resize:none !important;}`;
+if (template.includes(fittedRomaneioPrintCss)) {
+  template = replaceOnce(
+    template,
+    fittedRomaneioPrintCss,
+    balancedRomaneioPrintCss,
+    'balanced romaneio print styles',
+  );
+}
+
+const uncroppedRomaneioPrintCss = `    body.printing-romaneio .app-page{padding:0 !important;background:#fff !important;overflow:visible !important;}
+    body.printing-romaneio .romaneio-sheet{
+      border:none !important;box-shadow:none !important;border-radius:0 !important;margin:0 !important;max-width:none !important;padding:14px !important;
+      zoom:1;width:100% !important;font-size:11px !important;
+      break-inside:avoid-page !important;page-break-inside:avoid !important;
+    }
+    body.printing-romaneio .romaneio-client-grid{grid-template-columns:2fr 1fr 1fr 90px !important;gap:6px !important;padding:7px !important;}
+    body.printing-romaneio .romaneio-summary-grid{gap:12px !important;margin-top:8px !important;}
+    body.printing-romaneio .romaneio-sheet .data-table{overflow:visible !important;}
+    body.printing-romaneio .romaneio-sheet .data-grid{
+      grid-template-columns:42px 44px minmax(180px,1fr) 68px 74px 68px 76px 0 !important;
+      min-width:0 !important;padding:4px 6px !important;break-inside:avoid !important;page-break-inside:avoid !important;
+    }
+    body.printing-romaneio .romaneio-sheet .data-grid input{width:100% !important;min-width:0 !important;box-sizing:border-box !important;}
+    body.printing-romaneio .romaneio-sheet input,
+    body.printing-romaneio .romaneio-sheet textarea{border-color:transparent !important;background:transparent !important;padding:3px 5px !important;font-size:11px !important;}
+    body.printing-romaneio .romaneio-sheet textarea{height:30px !important;min-height:30px !important;resize:none !important;}`;
+if (template.includes(balancedRomaneioPrintCss)) {
+  template = replaceOnce(
+    template,
+    balancedRomaneioPrintCss,
+    uncroppedRomaneioPrintCss,
+    'uncropped romaneio print columns',
+  );
+}
+
+const balancedPrintRomaneioMethod = `  printRomaneio(){
+    const oldTitle=document.title;
+    const numero=String(this.state.romNumero||'romaneio').trim().replace(/[^a-zA-Z0-9_-]+/g,'-');
+    const pageStyle=document.createElement('style');
+    pageStyle.id='romaneio-print-page';
+    pageStyle.textContent='@page{size:A4 portrait;margin:5mm;}';
+    document.head.appendChild(pageStyle);
+    const restore=()=>{
+      document.title=oldTitle;
+      document.body.classList.remove('printing-romaneio');
+      if(pageStyle.parentNode)pageStyle.parentNode.removeChild(pageStyle);
+      window.removeEventListener('afterprint',restore);
+    };
+    document.title='Romaneio-'+numero;
+    document.body.classList.add('printing-romaneio');
+    window.addEventListener('afterprint',restore);
+    setTimeout(()=>window.print(),80);
+    setTimeout(restore,60000);
+  }`;
+if (template.includes(fittedPrintRomaneioMethod)) {
+  template = replaceOnce(
+    template,
+    fittedPrintRomaneioMethod,
+    balancedPrintRomaneioMethod,
+    'balanced romaneio print sizing',
+  );
+}
+
+template = template.replace(
+  '<div class="responsive-grid" style="display:grid;grid-template-columns:2fr 1fr 1fr 90px;gap:10px;padding:12px;">',
+  '<div class="responsive-grid romaneio-client-grid" style="display:grid;grid-template-columns:2fr 1fr 1fr 90px;gap:10px;padding:12px;">',
+);
+template = template.replace(
+  '<div style="display:grid;grid-template-columns:1fr 330px;gap:24px;margin-top:16px;align-items:start;">',
+  '<div class="romaneio-summary-grid" style="display:grid;grid-template-columns:1fr 330px;gap:24px;margin-top:16px;align-items:start;">',
+);
+
+if (!template.includes("romFornecedor:{nome:''")) {
+  template = replaceOnce(
+    template,
+    `    romaneios:[], romEditingId:null, romNumero:'', romData:'', romSearch:'', romCliSearch:'',
+    romCliente:{nome:'',cnpj:'',endereco:'',bairro:'',cidade:'',cep:'',uf:'',contato:'',ref:''},`,
+    `    romaneios:[], romEditingId:null, romNumero:'', romData:'', romSearch:'', romCliSearch:'',
+    romFornecedor:{nome:'',cnpj:'',endereco:'',telefone:''}, romShowFornecedorLogo:false,
+    romCliente:{nome:'',cnpj:'',endereco:'',bairro:'',cidade:'',cep:'',uf:'',contato:'',ref:''},`,
+    'romaneio supplier state',
+  );
+
+  template = replaceOnce(
+    template,
+    `  setRomCliente(f,v){ this.setState(s=>({romCliente:{...s.romCliente,[f]:v}})); }`,
+    `  setRomFornecedor(f,v){ this.setState(s=>({romFornecedor:{...s.romFornecedor,[f]:v}})); }
+  toggleTcconFornecedor(){
+    if(this.state.romShowFornecedorLogo){this.setState({romShowFornecedorLogo:false});return;}
+    const me=this.curUser()||{empresa:this.EMPRESA_PADRAO()};
+    const empresa=me.empresa||this.EMPRESA_PADRAO();
+    this.setState({
+      romFornecedor:{nome:empresa.nome||'',cnpj:empresa.cnpj||'',endereco:empresa.endereco||'',telefone:empresa.telefone||''},
+      romShowFornecedorLogo:true,
+    });
+  }
+  setRomCliente(f,v){ this.setState(s=>({romCliente:{...s.romCliente,[f]:v}})); }`,
+    'romaneio supplier actions',
+  );
+
+  template = replaceOnce(
+    template,
+    `      romEditingId:null,romNumero:'R-'+this.genNumero(),romData:this.today(),romSearch:'',romCliSearch:'',
+      romCliente:{nome:'',cnpj:'',endereco:'',bairro:'',cidade:'',cep:'',uf:'',contato:'',ref:''},`,
+    `      romEditingId:null,romNumero:'R-'+this.genNumero(),romData:this.today(),romSearch:'',romCliSearch:'',
+      romFornecedor:{nome:'',cnpj:'',endereco:'',telefone:''},romShowFornecedorLogo:false,
+      romCliente:{nome:'',cnpj:'',endereco:'',bairro:'',cidade:'',cep:'',uf:'',contato:'',ref:''},`,
+    'reset romaneio supplier',
+  );
+
+  template = replaceOnce(
+    template,
+    `      cliente:{...s.romCliente},itens:s.romItens.map(it=>({...it})),frete:s.romFrete,`,
+    `      fornecedor:{...s.romFornecedor},showFornecedorLogo:!!s.romShowFornecedorLogo,
+      cliente:{...s.romCliente},itens:s.romItens.map(it=>({...it})),frete:s.romFrete,`,
+    'save romaneio supplier',
+  );
+
+  template = replaceOnce(
+    template,
+    `      view:'romaneio',romEditingId:r.id,romNumero:r.numero,romData:r.data,
+      romCliente:{...r.cliente},romItens:r.itens.map(it=>({...it})),romFrete:r.frete||'',`,
+    `      view:'romaneio',romEditingId:r.id,romNumero:r.numero,romData:r.data,
+      romFornecedor:{...(r.fornecedor||{nome:'',cnpj:'',endereco:'',telefone:''})},
+      romShowFornecedorLogo:!!r.showFornecedorLogo,
+      romCliente:{...r.cliente},romItens:r.itens.map(it=>({...it})),romFrete:r.frete||'',`,
+    'open romaneio supplier',
+  );
+
+  template = replaceOnce(
+    template,
+    `      romNumero:s.romNumero,romData:s.romData,romCliente:s.romCliente,romItens:romRows,`,
+    `      romNumero:s.romNumero,romData:s.romData,
+      romFornecedor:s.romFornecedor,romShowFornecedorLogo:s.romShowFornecedorLogo,
+      romHideFornecedorLogo:!s.romShowFornecedorLogo,
+      romFornecedorBtn:s.romShowFornecedorLogo?'Ocultar logo TCCON':'Usar TCCON como fornecedor',
+      toggleTcconFornecedor:()=>this.toggleTcconFornecedor(),
+      onRomFornecedorNome:e=>this.setRomFornecedor('nome',e.target.value),
+      onRomFornecedorCnpj:e=>this.setRomFornecedor('cnpj',e.target.value),
+      onRomFornecedorEndereco:e=>this.setRomFornecedor('endereco',e.target.value),
+      onRomFornecedorTelefone:e=>this.setRomFornecedor('telefone',e.target.value),
+      romCliente:s.romCliente,romItens:romRows,`,
+    'romaneio supplier bindings',
+  );
+
+  template = replaceOnce(
+    template,
+    `          <div></div>
+          <div style="font-family:'Barlow Semi Condensed';font-weight:700;font-size:30px;letter-spacing:1px;text-align:center;">ROMANEIO</div>`,
+    `          <div>
+            <sc-if value="{{ romShowFornecedorLogo }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:58px;height:58px;flex:none;border-radius:50%;overflow:hidden;"><image-slot id="tccon-romaneio-logo" shape="circle" placeholder="Logo TCCON" src="58e4613a-04c8-4f7e-8821-e795125bd831"></image-slot></div>
+                <div>
+                  <div style="font-family:'Barlow Semi Condensed';font-size:15px;font-weight:700;">{{ romFornecedor.nome }}</div>
+                  <div style="font-size:10.5px;color:#6b655c;line-height:1.4;margin-top:2px;">CNPJ {{ romFornecedor.cnpj }}<br>{{ romFornecedor.endereco }}<br>{{ romFornecedor.telefone }}</div>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+          <div style="font-family:'Barlow Semi Condensed';font-weight:700;font-size:30px;letter-spacing:1px;text-align:center;">ROMANEIO</div>`,
+    'romaneio supplier logo header',
+  );
+
+  template = replaceOnce(
+    template,
+    `        <div style="margin-top:18px;border:1px solid #ddd7cd;border-radius:10px;overflow:hidden;">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f4f0e8;border-bottom:1px solid #ddd7cd;">
+            <span style="font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#5f584f;">Entrega / cliente</span>`,
+    `        <div class="romaneio-supplier-block" style="margin-top:18px;border:1px solid #ddd7cd;border-radius:10px;overflow:hidden;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:#f4f0e8;border-bottom:1px solid #ddd7cd;">
+            <span style="font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#5f584f;">Fornecedor</span>
+            <button data-noprint="" sc-camel-on-click="{{ toggleTcconFornecedor }}" style="display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid #c7d3de;border-radius:7px;background:#fff;color:var(--accent,#2f5d86);font-size:11.5px;font-weight:700;cursor:pointer;">
+              <span style="width:22px;height:22px;border-radius:50%;overflow:hidden;display:inline-flex;"><image-slot id="tccon-romaneio-button-logo" shape="circle" placeholder="TCCON" src="58e4613a-04c8-4f7e-8821-e795125bd831"></image-slot></span>
+              {{ romFornecedorBtn }}
+            </button>
+          </div>
+          <div class="responsive-grid romaneio-supplier-grid" style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;padding:12px;">
+            <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Razão social</span><input value="{{ romFornecedor.nome }}" sc-camel-on-input="{{ onRomFornecedorNome }}" style="width:100%;margin-top:3px;padding:7px 8px;border:1px solid #ddd7cd;border-radius:5px;"></label>
+            <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">CNPJ / CPF</span><input value="{{ romFornecedor.cnpj }}" sc-camel-on-input="{{ onRomFornecedorCnpj }}" style="width:100%;margin-top:3px;padding:7px 8px;border:1px solid #ddd7cd;border-radius:5px;"></label>
+            <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Telefone</span><input value="{{ romFornecedor.telefone }}" sc-camel-on-input="{{ onRomFornecedorTelefone }}" style="width:100%;margin-top:3px;padding:7px 8px;border:1px solid #ddd7cd;border-radius:5px;"></label>
+            <label style="grid-column:1 / -1;"><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Endereço do fornecedor</span><input value="{{ romFornecedor.endereco }}" sc-camel-on-input="{{ onRomFornecedorEndereco }}" style="width:100%;margin-top:3px;padding:7px 8px;border:1px solid #ddd7cd;border-radius:5px;"></label>
+          </div>
+        </div>
+
+        <div style="margin-top:10px;border:1px solid #ddd7cd;border-radius:10px;overflow:hidden;">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f4f0e8;border-bottom:1px solid #ddd7cd;">
+            <span style="font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#5f584f;">Entrega / cliente</span>`,
+    'romaneio supplier and client sections',
+  );
+
+  template = replaceOnce(
+    template,
+    `    body.printing-romaneio .romaneio-client-grid{grid-template-columns:2fr 1fr 1fr 90px !important;gap:6px !important;padding:7px !important;}`,
+    `    body.printing-romaneio .romaneio-supplier-block{margin-top:8px !important;}
+    body.printing-romaneio .romaneio-supplier-grid{grid-template-columns:2fr 1fr 1fr !important;gap:6px !important;padding:7px !important;}
+    body.printing-romaneio .romaneio-client-grid{grid-template-columns:2fr 1fr 1fr 90px !important;gap:6px !important;padding:7px !important;}`,
+    'romaneio supplier print layout',
+  );
+}
+
+if (!template.includes('class="romaneio-receipt"')) {
+  const receiptInsideSummary = `            <div style="display:grid;grid-template-columns:1fr 150px;gap:12px;margin-top:12px;">
+              <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Nome legÃ­vel do recebedor</span><input value="{{ romRecebedor }}" sc-camel-on-input="{{ onRomRecebedor }}" style="width:100%;margin-top:5px;padding:9px;border:0;border-bottom:1px solid #777;background:transparent;"></label>
+              <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Data recebimento</span><input value="{{ romRecebimentoData }}" sc-camel-on-input="{{ onRomRecebimentoData }}" style="width:100%;margin-top:5px;padding:9px;border:0;border-bottom:1px solid #777;background:transparent;text-align:center;"></label>
+            </div>`;
+  template = replaceOnce(
+    template,
+    receiptInsideSummary,
+    '',
+    'remove receipt signature from romaneio summary',
+  );
+
+  template = replaceOnce(
+    template,
+    `          </div>
+        </div>
+      </div>
+
+      <div class="romaneio-history" style="margin-top:22px;">`,
+    `          </div>
+        </div>
+
+        <div class="romaneio-receipt" style="display:grid;grid-template-columns:1fr 180px;gap:24px;margin-top:30px;padding-top:28px;border-top:1px solid #ddd7cd;break-inside:avoid;page-break-inside:avoid;">
+          <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Assinatura / nome legÃ­vel de quem recebeu</span><input value="{{ romRecebedor }}" sc-camel-on-input="{{ onRomRecebedor }}" style="width:100%;margin-top:18px;padding:9px;border:0;border-bottom:1px solid #777;background:transparent;"></label>
+          <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Data do recebimento</span><input value="{{ romRecebimentoData }}" sc-camel-on-input="{{ onRomRecebimentoData }}" style="width:100%;margin-top:18px;padding:9px;border:0;border-bottom:1px solid #777;background:transparent;text-align:center;"></label>
+        </div>
+      </div>
+
+      <div class="romaneio-history" style="margin-top:22px;">`,
+    'move receipt signature to romaneio footer',
+  );
+
+  template = replaceOnce(
+    template,
+    `    body.printing-romaneio .romaneio-summary-grid{gap:12px !important;margin-top:8px !important;}`,
+    `    body.printing-romaneio .romaneio-summary-grid{gap:12px !important;margin-top:8px !important;}
+    body.printing-romaneio .romaneio-receipt{margin-top:18px !important;padding-top:16px !important;}`,
+    'romaneio receipt print spacing',
+  );
+}
+
+const legacyReceiptInsideSummary = `            <div class="responsive-grid" style="display:grid;grid-template-columns:1fr 150px;gap:12px;margin-top:12px;">
+              <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Nome legÃ­vel do recebedor</span><input value="{{ romRecebedor }}" sc-camel-on-input="{{ onRomRecebedor }}" style="width:100%;margin-top:5px;padding:9px;border:0;border-bottom:1px solid #777;background:transparent;"></label>
+              <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Data recebimento</span><input value="{{ romRecebimentoData }}" sc-camel-on-input="{{ onRomRecebimentoData }}" style="width:100%;margin-top:5px;padding:9px;border:0;border-bottom:1px solid #777;background:transparent;text-align:center;"></label>
+            </div>`;
+if (template.includes(legacyReceiptInsideSummary)) {
+  template = replaceOnce(
+    template,
+    legacyReceiptInsideSummary,
+    '',
+    'remove duplicate receipt fields above romaneio footer',
   );
 }
 
