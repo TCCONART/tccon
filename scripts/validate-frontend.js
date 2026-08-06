@@ -97,13 +97,29 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     'romaneio-supplier-grid',
     '>Fornecedor</span>',
     'class="romaneio-receipt"',
-    'Assinatura / nome legÃ­vel de quem recebeu',
+    'class="romaneio-receipt-copy"',
+    'romaneio-receipt-fields',
+    'Declaro que recebi de <strong>{{ romFornecedor.nome }}</strong>',
+    'destinados a <strong>{{ romCliente.nome }}</strong>',
+    'Nome leg&iacute;vel / assinatura de quem recebeu',
+    'romSearchOpen:false',
+    'normalizeRomSearch=value=>',
+    'onRomSearchFocus:()=>this.setState({romSearchOpen:true})',
+    'showRomSearch:s.romSearchOpen',
+    'max-height:360px;overflow-y:auto',
+    'resize:vertical;color:#c62828;font-weight:700;',
   ];
   for (const marker of requiredTemplateMarkers) {
     if (!template.includes(marker)) throw new Error(`Frontend marker is missing: ${marker}`);
   }
   if (template.includes('>Nome legÃ­vel do recebedor</span>')) {
     throw new Error('Duplicate romaneio receipt fields remain above the footer');
+  }
+  if ((template.match(/sc-camel-on-input="{{ onRomRecebedor }}"/g) || []).length !== 1) {
+    throw new Error('The romaneio must expose exactly one receiver field');
+  }
+  if ((template.match(/sc-camel-on-input="{{ onRomRecebimentoData }}"/g) || []).length !== 1) {
+    throw new Error('The romaneio must expose exactly one receipt date field');
   }
   for (const marker of ['async checkAppVersion', 'startVersionPolling(){', 'async bootstrapApp']) {
     if (template.split(marker).length !== 2) {

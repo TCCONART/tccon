@@ -1675,7 +1675,7 @@ if (!template.includes('data-romaneio-page="true"')) {
 
         <div class="romaneio-summary-grid" style="display:grid;grid-template-columns:1fr 330px;gap:24px;margin-top:16px;align-items:start;">
           <div>
-            <label style="display:block;"><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Observações da entrega</span><textarea value="{{ romObs }}" sc-camel-on-input="{{ onRomObs }}" rows="4" placeholder="Horário, acesso, descarga, responsável…" style="width:100%;margin-top:5px;padding:9px 10px;border:1px solid #ddd7cd;border-radius:7px;resize:vertical;"></textarea></label>
+            <label style="display:block;"><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Observações da entrega</span><textarea value="{{ romObs }}" sc-camel-on-input="{{ onRomObs }}" rows="4" placeholder="Horário, acesso, descarga, responsável…" style="width:100%;margin-top:5px;padding:9px 10px;border:1px solid #ddd7cd;border-radius:7px;resize:vertical;color:#c62828;font-weight:700;"></textarea></label>
             <div style="display:grid;grid-template-columns:1fr 150px;gap:12px;margin-top:12px;">
               <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Nome legível do recebedor</span><input value="{{ romRecebedor }}" sc-camel-on-input="{{ onRomRecebedor }}" style="width:100%;margin-top:5px;padding:9px;border:0;border-bottom:1px solid #777;background:transparent;"></label>
               <label><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8a8377;">Data recebimento</span><input value="{{ romRecebimentoData }}" sc-camel-on-input="{{ onRomRecebimentoData }}" style="width:100%;margin-top:5px;padding:9px;border:0;border-bottom:1px solid #777;background:transparent;text-align:center;"></label>
@@ -2068,6 +2068,110 @@ if (template.includes(legacyReceiptInsideSummary)) {
   );
 }
 
+const duplicateReceiptFieldsPattern = /            <div class="responsive-grid" style="display:grid;grid-template-columns:1fr 150px;gap:12px;margin-top:12px;">[\s\S]*?sc-camel-on-input="{{ onRomRecebedor }}"[\s\S]*?sc-camel-on-input="{{ onRomRecebimentoData }}"[\s\S]*?            <\/div>\n/;
+if (duplicateReceiptFieldsPattern.test(template)) {
+  template = template.replace(duplicateReceiptFieldsPattern, '');
+}
+
+if (!template.includes('class="romaneio-receipt-copy"')) {
+  const currentReceiptPattern = /        <div class="romaneio-receipt"[\s\S]*?        <\/div>\n      <\/div>\n\n      <div class="romaneio-history"/;
+  if (!currentReceiptPattern.test(template)) {
+    throw new Error('Patch anchor not found: current romaneio receipt');
+  }
+  template = template.replace(
+    currentReceiptPattern,
+    `        <div class="romaneio-receipt" style="margin-top:30px;padding-top:18px;border-top:2px dashed #8a8377;break-inside:avoid;page-break-inside:avoid;">
+          <div style="display:flex;align-items:center;gap:10px;margin:-26px 0 12px;color:#8a8377;font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;">
+            <span style="background:#fff;padding-right:8px;">&#9986; Canhoto &mdash; recorte aqui</span>
+          </div>
+          <div class="romaneio-receipt-copy" style="border:1.5px solid #5f584f;background:#fff;">
+            <div style="padding:10px 12px;border-bottom:1px solid #8a8377;font-size:10px;line-height:1.45;text-transform:uppercase;">
+              Declaro que recebi de <strong>{{ romFornecedor.nome }}</strong>, CNPJ <strong>{{ romFornecedor.cnpj }}</strong>, os materiais constantes neste romaneio, destinados a <strong>{{ romCliente.nome }}</strong>, CNPJ <strong>{{ romCliente.cnpj }}</strong>.
+            </div>
+            <div class="responsive-grid romaneio-receipt-fields" style="display:grid;grid-template-columns:1fr 180px;">
+              <label style="padding:9px 12px 7px;"><span style="display:block;font-size:9px;font-weight:800;text-transform:uppercase;color:#6b655c;">Nome leg&iacute;vel / assinatura de quem recebeu</span><input value="{{ romRecebedor }}" sc-camel-on-input="{{ onRomRecebedor }}" style="width:100%;margin-top:12px;padding:7px 2px;border:0;border-bottom:1px solid #777;background:transparent;"></label>
+              <label style="padding:9px 12px 7px;border-left:1px solid #8a8377;"><span style="display:block;font-size:9px;font-weight:800;text-transform:uppercase;color:#6b655c;">Data de recebimento</span><input value="{{ romRecebimentoData }}" sc-camel-on-input="{{ onRomRecebimentoData }}" style="width:100%;margin-top:12px;padding:7px 2px;border:0;border-bottom:1px solid #777;background:transparent;text-align:center;"></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="romaneio-history"`,
+  );
+}
+
+if (!template.includes('body.printing-romaneio .romaneio-receipt-fields')) {
+  template = replaceOnce(
+    template,
+    `    body.printing-romaneio .romaneio-receipt{margin-top:18px !important;padding-top:16px !important;}`,
+    `    body.printing-romaneio .romaneio-receipt{margin-top:18px !important;padding-top:14px !important;}
+    body.printing-romaneio .romaneio-receipt-fields{grid-template-columns:1fr 180px !important;}
+    body.printing-romaneio .romaneio-receipt-copy input{padding:3px 2px !important;font-size:10px !important;}`,
+    'romaneio detachable receipt print layout',
+  );
+}
+
+if (!template.includes('romSearchOpen:false')) {
+  template = replaceOnce(
+    template,
+    `    romaneios:[], romEditingId:null, romNumero:'', romData:'', romSearch:'', romCliSearch:'',`,
+    `    romaneios:[], romEditingId:null, romNumero:'', romData:'', romSearch:'', romSearchOpen:false, romCliSearch:'',`,
+    'romaneio material picker state',
+  );
+
+  template = replaceOnce(
+    template,
+    `      romItens:[...s.romItens,{cod:p.cod,desc:p.desc,qtd:'1',peso:this.num(p.peso),vunit:String(this.num(p.preco))}],
+      romSearch:'',`,
+    `      romItens:[...s.romItens,{cod:p.cod,desc:p.desc,qtd:'1',peso:this.num(p.peso),vunit:String(this.num(p.preco))}],
+      romSearch:'',romSearchOpen:false,`,
+    'close material picker after adding an item',
+  );
+
+  template = replaceOnce(
+    template,
+    `    const romQ=s.romSearch.trim().toLocaleLowerCase('pt-BR');
+    const romSearchResults=romQ?s.products.filter(p=>String(p.cod).includes(romQ)||(p.desc||'').toLocaleLowerCase('pt-BR').includes(romQ)).slice(0,7).map(p=>({
+      cod:p.cod,desc:p.desc,pesoStr:this.kg(p.peso),precoStr:this.brl(p.preco),
+      add:()=>this.addRomProduct(p),
+      onKey:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();this.addRomProduct(p);}},
+    })):[];`,
+    `    const normalizeRomSearch=value=>String(value||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').trim().toLocaleLowerCase('pt-BR');
+    const romQ=normalizeRomSearch(s.romSearch);
+    const romSearchResults=(romQ?s.products.filter(p=>normalizeRomSearch(p.cod).includes(romQ)||normalizeRomSearch(p.desc).includes(romQ)):s.products).slice(0,12).map(p=>({
+      cod:p.cod,desc:p.desc,pesoStr:this.kg(p.peso),precoStr:this.brl(p.preco),
+      add:()=>this.addRomProduct(p),
+      onKey:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();this.addRomProduct(p);}},
+    }));`,
+    'romaneio material picker search',
+  );
+
+  template = replaceOnce(
+    template,
+    `      romSearch:s.romSearch,onRomSearch:e=>this.setState({romSearch:e.target.value}),
+      romSearchResults,showRomSearch:romQ.length>0,noRomSearch:romQ.length>0&&romSearchResults.length===0,`,
+    `      romSearch:s.romSearch,onRomSearch:e=>this.setState({romSearch:e.target.value,romSearchOpen:true}),
+      onRomSearchFocus:()=>this.setState({romSearchOpen:true}),
+      onRomSearchBlur:()=>setTimeout(()=>this.setState({romSearchOpen:false}),180),
+      romSearchResults,showRomSearch:s.romSearchOpen,noRomSearch:s.romSearchOpen&&romSearchResults.length===0,`,
+    'romaneio material picker bindings',
+  );
+
+  template = replaceOnce(
+    template,
+    `<input value="{{ romSearch }}" sc-camel-on-input="{{ onRomSearch }}" placeholder="Adicionar material por código ou descrição…" style="width:100%;padding:10px 12px;border:1.5px solid #c9c1b5;border-radius:8px;font-size:13px;background:#fbfaf7;">`,
+    `<input value="{{ romSearch }}" sc-camel-on-input="{{ onRomSearch }}" sc-camel-on-focus="{{ onRomSearchFocus }}" sc-camel-on-blur="{{ onRomSearchBlur }}" autocomplete="off" aria-autocomplete="list" aria-expanded="{{ showRomSearch }}" placeholder="Adicionar material por código ou descrição…" style="width:100%;padding:10px 12px;border:1.5px solid #c9c1b5;border-radius:8px;font-size:13px;background:#fbfaf7;">`,
+    'romaneio material picker input',
+  );
+
+  template = replaceOnce(
+    template,
+    `top:43px;background:#fff;border:1px solid #d8d2c8;border-radius:8px;box-shadow:0 10px 28px rgba(0,0,0,.13);overflow:hidden;`,
+    `top:43px;background:#fff;border:1px solid #d8d2c8;border-radius:8px;box-shadow:0 10px 28px rgba(0,0,0,.13);max-height:360px;overflow-y:auto;`,
+    'scrollable romaneio material picker results',
+  );
+}
+
 if (!template.includes('clienteBuscaAberta:false')) {
   template = replaceOnce(
     template,
@@ -2124,6 +2228,15 @@ template = replaceOnce(
       onCnpj:e=>this.setCli('cnpj',e.target.value), onEndereco:e=>this.setCli('endereco',e.target.value), onContato:e=>this.setCli('contato',e.target.value),`,
   'client name suggestion actions',
 );
+
+if (!template.includes('resize:vertical;color:#c62828;font-weight:700;')) {
+  template = replaceOnce(
+    template,
+    `style="width:100%;margin-top:5px;padding:9px 10px;border:1px solid #ddd7cd;border-radius:7px;resize:vertical;"></textarea></label>`,
+    `style="width:100%;margin-top:5px;padding:9px 10px;border:1px solid #ddd7cd;border-radius:7px;resize:vertical;color:#c62828;font-weight:700;"></textarea></label>`,
+    'romaneio delivery observation emphasis',
+  );
+}
 
 template = replaceOnce(
   template,
