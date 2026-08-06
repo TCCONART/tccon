@@ -100,6 +100,7 @@ function validateFrontend(bundlePath = path.resolve(__dirname, '..', 'public', '
     'class="romaneio-receipt-copy"',
     'romaneio-receipt-fields',
     'Declaro que recebi de <strong>{{ romFornecedor.nome }}</strong>',
+    'Romaneio n&ordm; <strong>{{ romNumero }}</strong>',
     'destinados a <strong>{{ romCliente.nome }}</strong>',
     'Nome leg&iacute;vel / assinatura de quem recebeu',
     'romSearchOpen:false',

@@ -2086,7 +2086,7 @@ if (!template.includes('class="romaneio-receipt-copy"')) {
           </div>
           <div class="romaneio-receipt-copy" style="border:1.5px solid #5f584f;background:#fff;">
             <div style="padding:10px 12px;border-bottom:1px solid #8a8377;font-size:10px;line-height:1.45;text-transform:uppercase;">
-              Declaro que recebi de <strong>{{ romFornecedor.nome }}</strong>, CNPJ <strong>{{ romFornecedor.cnpj }}</strong>, os materiais constantes neste romaneio, destinados a <strong>{{ romCliente.nome }}</strong>, CNPJ <strong>{{ romCliente.cnpj }}</strong>.
+              Romaneio n&ordm; <strong>{{ romNumero }}</strong>. Declaro que recebi de <strong>{{ romFornecedor.nome }}</strong>, CNPJ <strong>{{ romFornecedor.cnpj }}</strong>, os materiais constantes neste romaneio, destinados a <strong>{{ romCliente.nome }}</strong>, CNPJ <strong>{{ romCliente.cnpj }}</strong>.
             </div>
             <div class="responsive-grid romaneio-receipt-fields" style="display:grid;grid-template-columns:1fr 180px;">
               <label style="padding:9px 12px 7px;"><span style="display:block;font-size:9px;font-weight:800;text-transform:uppercase;color:#6b655c;">Nome leg&iacute;vel / assinatura de quem recebeu</span><input value="{{ romRecebedor }}" sc-camel-on-input="{{ onRomRecebedor }}" style="width:100%;margin-top:12px;padding:7px 2px;border:0;border-bottom:1px solid #777;background:transparent;"></label>
@@ -2235,6 +2235,15 @@ if (!template.includes('resize:vertical;color:#c62828;font-weight:700;')) {
     `style="width:100%;margin-top:5px;padding:9px 10px;border:1px solid #ddd7cd;border-radius:7px;resize:vertical;"></textarea></label>`,
     `style="width:100%;margin-top:5px;padding:9px 10px;border:1px solid #ddd7cd;border-radius:7px;resize:vertical;color:#c62828;font-weight:700;"></textarea></label>`,
     'romaneio delivery observation emphasis',
+  );
+}
+
+if (!template.includes('Romaneio n&ordm; <strong>{{ romNumero }}</strong>. Declaro que recebi')) {
+  template = replaceOnce(
+    template,
+    `Declaro que recebi de <strong>{{ romFornecedor.nome }}</strong>, CNPJ <strong>{{ romFornecedor.cnpj }}</strong>, os materiais constantes neste romaneio, destinados a <strong>{{ romCliente.nome }}</strong>, CNPJ <strong>{{ romCliente.cnpj }}</strong>.`,
+    `Romaneio n&ordm; <strong>{{ romNumero }}</strong>. Declaro que recebi de <strong>{{ romFornecedor.nome }}</strong>, CNPJ <strong>{{ romFornecedor.cnpj }}</strong>, os materiais constantes neste romaneio, destinados a <strong>{{ romCliente.nome }}</strong>, CNPJ <strong>{{ romCliente.cnpj }}</strong>.`,
+    'romaneio number on detachable receipt',
   );
 }
 
